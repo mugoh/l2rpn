@@ -128,9 +128,6 @@ def ppo(env,
     path = os.path.join(
         'data', env.unwrapped.spec.id + args.get('env_name', '') + '_' + run_t)
 
-    # if not os.path.exists(path):
-    #    os.makedirs(path)
-
     logger = SummaryWriter(log_dir=path)
 
     def compute_pi_loss(log_p_old, adv_b, act_b, obs_b):
@@ -157,7 +154,7 @@ def ppo(env,
         obs_b, rew_b = data['obs_b'], data['rew_b']
 
         v_pred = actor.v(obs_b)
-        v_loss = torch.mean((v_pred - rew_b)**2)
+        v_loss = ((v_pred - rew_b)**2).mean()
 
         return v_loss
 
