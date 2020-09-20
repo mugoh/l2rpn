@@ -11,12 +11,16 @@ import os
 import core
 from core import dcum2 as discounted_cumsum
 
+from grid2op.Agent import AgentWithConverter
+from grid2op.Converter import IdToAct
+
 
 class ReplayBuffer:
     """
         Transitions buffer
         Stores transitions for a single episode
     """
+
     def __init__(self, act_dim, obs_dim, size=4000, gamma=.98, lamda=.95):
         self.size = size
         self.gamma = gamma
@@ -81,8 +85,15 @@ class ReplayBuffer:
         self.eps_end_ptr = self.ptr
 
 
-class PPO:
-    def __init__(self, env, actor_class=core.MLPActor, **args):
+class PPOAgent:
+    def __init__(self,
+                 env,
+                 observation_space,
+                 action_space,
+                 actor_class=core.MLPActor,
+                 **args):
+        super(PPOAgent, self).__init__(action_space,
+                                       action_space_converter=IdToAct)
         """
         actor_args: hidden_size(list), size(int)-network size, pi_lr, v_lr
         max_lr: Max kl divergence between new and old polices (0.01 - 0.05)
@@ -92,11 +103,18 @@ class PPO:
         obs_space = env.observation_space
         act_space = env.action_space
 
-        act_dim = act_space.shape[0] if not isinstance(
-            act_space, gym.spaces.Discrete) else act_space.n
-        obs_dim = obs_space.shape[0]
+        act_dim = action_space.size()
+        obs_dim = observation_space.size()
+
         self.args = args
         self.env = env
+
+        print('Filtering actions..')
+        self.action_space.filter_action(self._filter_act)
+        print('Done')
+
+        self.obs_size = obs_dim
+        self.size = act_size = act_dim
 
         self.actor = actor_class(obs_space=obs_space,
                                  act_space=act_space,
@@ -112,8 +130,14 @@ class PPO:
                                    lamda=args['lamda'],
                                    gamma=args['gamma'])
 
+        self.training = self.args['training']
+
         self.pi_optimizer = optim.Adam(self.actor.pi.parameters(),
                                        args['pi_lr'])
+
+        if self.args['schedule_pi_lr']:
+            self.pi_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.pi_optimizer, patience=2, threshold=1e-3)
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -158,6 +182,48 @@ class PPO:
 
         return v_loss
 
+    def _filter_act(self, action):
+        """
+            Wrapper to Filter the action space
+            Passed to self.filter_action
+        """
+        max_elem = 2
+
+        act_dict = action.impact_on_objects()
+        elem = 0
+        elem += act_dict["force_line"]["reconnections"]["count"]
+        elem += act_dict["force_line"]["disconnections"]["count"]
+        elem += act_dict["switch_line"]["count"]
+        elem += len(act_dict["topology"]["bus_switch"])
+        elem += len(act_dict["topology"]["assigned_bus"])
+        elem += len(act_dict["topology"]["disconnect_bus"])
+        elem += len(act_dict["redispatch"]["generators"])
+
+        if elem <= max_elem:
+            return True
+        return False
+
+    def my_act(self, transformed_obs, reward=None, done=False):
+        """
+            Used by the agent to decide on action to take
+
+            Returns an `encoded_action` which is reconverted
+            by the inherited `self.convert_act` into a valid
+            action that can be taken in the env
+
+
+        """
+
+        act = self.predict_action(transformed_obs)
+
+        return act
+
+    def train(self):
+        """
+            Trains actor
+        """
+        self.run_training_loop()
+
     def _update(self, epoch):
         """
             Update the policy and value function from loss
@@ -190,6 +256,8 @@ class PPO:
 
             pi_loss.backward()
             self.pi_optimizer.step()
+            if self.args['schedule_pi_lr']:
+                self.pi_scheduler.step()
 
         self.logger.add_scalar('PiStopIter', i, epoch)
         pi_loss = pi_loss.item()
@@ -227,17 +295,20 @@ class PPO:
 
         return self.actor.step(obs, act_only=True)
 
-    def load_actor(self, path=''):
+    def load(self, path='PPO_MODEL.pt'):
         """
             Loads trained actor network
         """
-        self.actor.load_state_dict(path)
+        self.actor.load_state_dict(torch.load(path))
 
-    def save_actor(self, path=''):
+        if not self.training:
+            self.actor.eval()  # sets self.train(False)
+
+    def save(self, path='PPO_MODEL.pt'):
         """
             Saves trained actor net parameters
         """
-        self.actor._save_to_state_dict(path)
+        torch.save(self.actor.state_dict(), path)
 
     def run_training_loop(self):
         start_time = time.time()
@@ -248,15 +319,27 @@ class PPO:
         steps_per_epoch = self.args['steps_per_epoch']
         max_eps_len = self.args['max_eps_len']
 
+        err_act_msg = [
+            'is_illegal', 'is_ambiguous', 'is_dipatching_illegal',
+            'is_illegal_reco'
+        ]
+
         for t in range(n_epochs):
             eps_len_logs, eps_ret_log = [], []
             for step in range(steps_per_epoch):
+                obs = self.convert_obs(obs)  # Encode state
+
                 a, v, log_p = self.actor.step(
                     torch.from_numpy(obs).type(torch.float32))
 
                 # log v
                 self.v_logs.append(v)
-                obs_n, rew, done, _ = self.env.step(a)
+                obs_n, rew, done, info = self.env.step(self.convert(act))
+
+                obs_n = self.convert_obs(obs_n)
+
+                # Invalid action
+                [print(a, info) if info[err_msg] for err_msg in err_act_msg]
 
                 eps_len += 1
                 eps_ret += rew
@@ -333,37 +416,9 @@ class PPO:
                 print(k, v)
             print('\n\n\n')
 
+            # Save model
+            final_epoch = t == n_epochs - 1
 
-def main():
-    """
-        Ppo runner
-    """
-
-    env = gym.make('HalfCheetah-v2')
-
-    ac_args = {'hidden_size': [64, 64], 'size': 2}
-    train_args = {
-        'pi_train_n_iters': 80,
-        'v_train_n_iters': 80,
-        'max_kl': .01,
-        'max_eps_len': 150
-    }
-    agent_args = {
-        'n_epochs': 100,
-        'env_name': '',  # 'b_10000_plr_.1e-4',
-        'steps_per_epoch': 10000
-    }
-
-    args = {
-        'ac_args': ac_args,
-        'pi_lr': 1e-4,
-        'v_lr': 1e-3,
-        'gamma': .99,
-        'lamda': .97,
-        **agent_args,
-        **train_args
-    }
-
-
-if __name__ == '__main__':
-    main()
+            if (t and not t % self.args['save_frequency']) or final_epoch:
+                print('Saving model..')
+                self.save()
