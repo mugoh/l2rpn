@@ -83,6 +83,7 @@ class ReplayBuffer:
         # GAE
         deltas = rew[:-1] + self.gamma * vals[1:] - vals[:-1]
         self.adv[idx] = discounted_cumsum(deltas, self.gamma * self.lamda)
+        self.adv = (self.adv - self.adv.mean()) / self.adv.std()
 
         # Reward to go
         self.rewards[idx] = discounted_cumsum(rew, self.gamma)[:-1]
@@ -125,6 +126,7 @@ class PPOAgent(AgentWithConverter):
         # For obs extraction
         self._tmp_obs, self._indx_obs = None, None
         self.extract_obs(observation_space)
+        breakpoint()
 
         self.actor = actor_class(obs_dim,
                                  act_dim,
@@ -150,7 +152,7 @@ class PPOAgent(AgentWithConverter):
 
         if self.args['schedule_pi_lr']:
             self.pi_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.pi_optimizer, patience=2, threshold=1e-3, min_lr=1e-5)
+                self.pi_optimizer, patience=2, threshold=1e3, min_lr=1e-5)
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -380,8 +382,8 @@ class PPOAgent(AgentWithConverter):
         """
         path = self.args['save_path']
 
-        name, ext = path.split('.')
-        path_name = f'name-{self.path_time}.{ext}'
+        name, ext = path.rsplit('.', 1)
+        path_name = f'{ name }-{self.path_time}.{ext}'
 
         torch.save(self.actor.state_dict(), path_name)
         print(f'Saved model at -> {path_name}')
