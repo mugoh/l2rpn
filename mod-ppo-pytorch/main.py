@@ -28,12 +28,17 @@ def main():
     agent_args = {
         'n_epochs': 100,
         'env_name': '',  # 'b_10000_plr_.1e-4',
-        'steps_per_epoch': 10000
+        'steps_per_epoch': 10000,
+        'save_frequency': 100,
+        'training': True,
+        'schedule_pi_lr':
+        False,  # If true use torch.torch.optim.lr_scheduler.ReduceLROnPlateau
+        'schedule_v_lr': False
     }
 
     args = {
         'ac_args': ac_args,
-        'pi_lr': 2e-4,
+        'pi_lr': 3e-4,
         'v_lr': 1e-3,
         'gamma': .99,
         'lamda': .97,
