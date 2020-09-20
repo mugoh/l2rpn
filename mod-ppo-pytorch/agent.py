@@ -1,6 +1,7 @@
 """
     Grid2op  Agent
 """
+
 from grid2op.Agent import AgentWithConverter
 from grid2op.Converter import IdToAct
 
@@ -20,7 +21,7 @@ class MLPAgent(AgentWithConverter):
         self.ppo_agent = PPO(env, **ppo_args)
 
         self.obs_size = self.obs_space.size()
-        self.action_space = self.action_space.size()
+        self.action_size = self.action_space.size()
 
     def _filter_act(self, action):
         """
@@ -69,3 +70,9 @@ class MLPAgent(AgentWithConverter):
             Saves model params
         """
         self.ppo_agent.save_actor(path)
+
+    def train(self):
+        """
+            Trains actor
+        """
+        self.ppo_agent.run_training_loop()

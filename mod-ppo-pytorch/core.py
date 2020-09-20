@@ -198,38 +198,15 @@ class MLPActor(nn.Module):
     """
         Agent actor Net
     """
-    def __init__(self,
-                 obs_space,
-                 act_space,
-                 hidden_size=[32, 32],
-                 activation=nn.Tanh,
-                 size=2,
-                 *,
-                 discrete=False):
+    def __init__(self, obs_dim, act_dim, *, discrete=False, **net_args):
         super(MLPActor, self).__init__()
 
-        obs_dim = obs_space.shape[0]
-        discrete = True if isinstance(act_space, Discrete) else False
-        act_dim = act_space.n if discrete else act_space.shape[0]
-
         if discrete:
-            self.pi = CategoricalPolicy(obs_dim,
-                                        act_dim,
-                                        hidden_size,
-                                        size=size,
-                                        activation=activation)
+            self.pi = CategoricalPolicy(obs_dim, act_dim, **net_args['pi'])
         else:
-            self.pi = MLPGaussianPolicy(obs_dim,
-                                        act_dim,
-                                        hidden_size,
-                                        activation=activation,
-                                        size=size)
+            self.pi = MLPGaussianPolicy(obs_dim, act_dim, **net_args['pi'])
 
-        self.v = MLPCritic(obs_dim,
-                           act_dim,
-                           hidden_sizes=hidden_size,
-                           size=size,
-                           activation=activation)
+        self.v = MLPCritic(obs_dim, act_dim, **net_args['v'])
 
     def step(self, obs, act_only=False):
         """

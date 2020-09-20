@@ -93,31 +93,32 @@ class PPOAgent:
                  actor_class=core.MLPActor,
                  **args):
         super(PPOAgent, self).__init__(action_space,
-                                       action_space_converter=IdToAct)
+                                       action_space_converter=IdToAct, **args['kwargs_converters'])
         """
         actor_args: hidden_size(list), size(int)-network size, pi_lr, v_lr
         max_lr: Max kl divergence between new and old polices (0.01 - 0.05)
                 Triggers early stopping for pi training
         """
 
-        obs_space = env.observation_space
-        act_space = env.action_space
-
-        act_dim = action_space.size()
-        obs_dim = observation_space.size()
-
         self.args = args
         self.env = env
 
-        print('Filtering actions..')
-        self.action_space.filter_action(self._filter_act)
-        print('Done')
+        if args['filter_actions']:
+            self.filter_acts = True
+            print('Filtering actions..')
+            self.action_space.filter_action(self._filter_act)
+            print('Done')
 
-        self.obs_size = obs_dim
-        self.size = act_size = act_dim
+        act_dim = self.get_action_size(self.action_space)
 
-        self.actor = actor_class(obs_space=obs_space,
-                                 act_space=act_space,
+        obs_dim = self._get_obs_size(observation_space)
+
+        # For obs extraction
+        self._tmp_obs, self._indx_obs = None, None
+        self.extract_obs(observation_space)
+
+        self.actor = actor_class(obs_dim,
+                                 act_dim, discrete=True,
                                  **args['ac_args'])
         params = [
             core.count(module) for module in (self.actor.pi, self.actor.v)
@@ -152,6 +153,32 @@ class PPOAgent:
             env.unwrapped.spec.id + args.get('env_name', '') + '_' + run_t)
 
         self.logger = SummaryWriter(log_dir=path)
+
+    def _get_obs_size(self, obs_space):
+        """
+            Get the dimension of an observation
+            given the extracted observation attributes
+        """
+        size = 0
+
+        for attr_name in self.args['obs_attributes']:
+            start, end, _ = obs_space.get_indx_extract(attr_name)
+            size += (start - end)
+
+        return size
+
+    def get_action_size(self, act_space):
+        """
+            Gives the size of the action space
+            after the extracted action attributes
+        """
+        convertor = IdToAct(act_space)
+        convertor.init_converter(**self.args['kwargs_converters'])
+
+        if self.filter_acts:
+            convertor.filter_action(self._filter_act)
+
+        return convertor.n
 
     def _compute_pi_loss(self, log_p_old, adv_b, act_b, obs_b):
         """
@@ -202,6 +229,35 @@ class PPOAgent:
         if elem <= max_elem:
             return True
         return False
+
+    def extract_obs(self, obs_space):
+        """
+            Initializes the observation by extracting the
+            listed attribute names selected to represent the
+            observation.
+        """
+
+        tmp = np.zeros(0, dtype=np.uint)  # TODO platform independant
+        for obs_attr_name in self.args['obs_attributes']:
+            beg_, end_,  = observation_space.get_indx_extract(
+                obs_attr_name)
+            tmp = np.concatenate((tmp, np.arange(beg_, end_, dtype=np.uint)))
+        self._indx_obs = tmp
+        self._tmp_obs = np.zeros((1, tmp.shape[0]), dtype=np.float32)
+
+    def convert_obs(self, observation):
+        """
+            Overrides super:
+
+            Converts an observation into a vector then
+            selects the attribues identified to represent
+            the observation
+        """
+
+        obs_vec = observation.to_vec()
+        self._tmp_obs[:] = obs_vec[self._indx_obs]
+
+        return self._tmp_obs
 
     def my_act(self, transformed_obs, reward=None, done=False):
         """
@@ -300,6 +356,7 @@ class PPOAgent:
             Loads trained actor network
         """
         self.actor.load_state_dict(torch.load(path))
+        print(f'Loaded model from: {path}')
 
         if not self.training:
             self.actor.eval()  # sets self.train(False)
@@ -309,6 +366,7 @@ class PPOAgent:
             Saves trained actor net parameters
         """
         torch.save(self.actor.state_dict(), path)
+        print(f'Saved model at -> {path}')
 
     def run_training_loop(self):
         start_time = time.time()
