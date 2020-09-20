@@ -4,7 +4,6 @@ import torch.optim as optim
 
 from torch.utils.tensorboard import SummaryWriter
 
-import gym
 import time
 import os
 
@@ -148,9 +147,10 @@ class PPOAgent(AgentWithConverter):
         self.first_run_ret = None
 
         run_t = time.strftime('%Y-%m-%d-%H-%M-%S')
+        self.path_time = run_t  # For model path
         path = os.path.join(
             'data',
-            env.unwrapped.spec.id + args.get('env_name', '') + '_' + run_t)
+            env.name + args.get('env_name', '') + '_' + run_t)
 
         self.logger = SummaryWriter(log_dir=path)
 
@@ -365,8 +365,13 @@ class PPOAgent(AgentWithConverter):
         """
             Saves trained actor net parameters
         """
-        torch.save(self.actor.state_dict(), path)
-        print(f'Saved model at -> {path}')
+        path = self.args['save_path']
+
+        name, ext = path.split('.')
+        path_name = f'name-{self.path_time}.{ext}'
+
+        torch.save(self.actor.state_dict(), path_name)
+        print(f'Saved model at -> {path_name}')
 
     def run_training_loop(self):
         start_time = time.time()

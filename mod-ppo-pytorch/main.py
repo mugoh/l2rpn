@@ -4,6 +4,8 @@ import torch.nn as nn
 import grid2op
 from lightsim2grid.LightSimBackend import LightSimBackend
 
+import os
+
 
 def main():
     """
@@ -77,10 +79,17 @@ def main():
         'v_lr': 1e-3,
         'gamma': .99,
         'lamda': .97,
+        'save_path': 'PPO_MODEL.pt',
         **agent_args,
         **train_args,
         **feature_args
     }
+
+    dir_name = os.path.dirname(os.path.abspath('__file__'))
+    save_dir = os.path.join(dir_name, 'models')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    args['save_path'] = os.path.join(save_dir, args.get('save_path'))
 
     runner = PPOAgent(env, env.observation_space, env.action_space, **args)
     runner.run_training_loop()
