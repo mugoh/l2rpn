@@ -1,9 +1,8 @@
-from ppo import PPO
+from ppo import PPOAgent
 import torch.nn as nn
 
-import gym
-# import grid2op
-# from lightsim2grid.LightSimBackend import LightSimBackend
+import grid2op
+from lightsim2grid.LightSimBackend import LightSimBackend
 
 
 def main():
@@ -11,12 +10,8 @@ def main():
         Ppo runner
     """
 
-    #   backend = LightSimBackend()
-    #   env = grid2op.make("l2rpn_neurips_2020_track1",
-    #                      test=True,
-    #                      difficulty="0",
-    #                      backend=backend)
-    env = gym.make('HalfCheetah-v2')
+    backend = LightSimBackend()
+    env = grid2op.make("l2rpn_case14_sandbox", backend=backend)
 
     ac_args = {
         'hidden_size': [64, 64],
@@ -61,7 +56,7 @@ def main():
         # Whether to perform action filtering
         # See {AgentClassName}._filter_act for info
         'filter_acts':
-        True
+        False
     }
 
     agent_args = {
@@ -87,7 +82,7 @@ def main():
         **feature_args
     }
 
-    runner = PPO(env, **args)
+    runner = PPOAgent(env, env.observation_space, env.action_space, **args)
     runner.run_training_loop()
 
 

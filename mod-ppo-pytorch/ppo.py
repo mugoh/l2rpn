@@ -85,7 +85,7 @@ class ReplayBuffer:
         self.eps_end_ptr = self.ptr
 
 
-class PPOAgent:
+class PPOAgent(AgentWithConverter):
     def __init__(self,
                  env,
                  observation_space,
@@ -103,7 +103,7 @@ class PPOAgent:
         self.args = args
         self.env = env
 
-        if args['filter_actions']:
+        if args['filter_acts']:
             self.filter_acts = True
             print('Filtering actions..')
             self.action_space.filter_action(self._filter_act)
@@ -239,7 +239,7 @@ class PPOAgent:
 
         tmp = np.zeros(0, dtype=np.uint)  # TODO platform independant
         for obs_attr_name in self.args['obs_attributes']:
-            beg_, end_,  = observation_space.get_indx_extract(
+            beg_, end_, _ = obs_space.get_indx_extract(
                 obs_attr_name)
             tmp = np.concatenate((tmp, np.arange(beg_, end_, dtype=np.uint)))
         self._indx_obs = tmp
