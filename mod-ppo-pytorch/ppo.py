@@ -227,6 +227,18 @@ class PPO:
 
         return self.actor.step(obs, act_only=True)
 
+    def load_actor(self, path=''):
+        """
+            Loads trained actor network
+        """
+        self.actor.load_state_dict(path)
+
+    def save_actor(self, path=''):
+        """
+            Saves trained actor net parameters
+        """
+        self.actor._save_to_state_dict(path)
+
     def run_training_loop(self):
         start_time = time.time()
         obs = self.env.reset()
