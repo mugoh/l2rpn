@@ -19,7 +19,6 @@ class ReplayBuffer:
         Transitions buffer
         Stores transitions for a single episode
     """
-
     def __init__(self, act_dim, obs_dim, size=4000, gamma=.98, lamda=.95):
         self.size = size
         self.gamma = gamma
@@ -92,7 +91,8 @@ class PPOAgent(AgentWithConverter):
                  actor_class=core.MLPActor,
                  **args):
         super(PPOAgent, self).__init__(action_space,
-                                       action_space_converter=IdToAct, **args['kwargs_converters'])
+                                       action_space_converter=IdToAct,
+                                       **args['kwargs_converters'])
         """
         actor_args: hidden_size(list), size(int)-network size, pi_lr, v_lr
         max_lr: Max kl divergence between new and old polices (0.01 - 0.05)
@@ -107,6 +107,8 @@ class PPOAgent(AgentWithConverter):
             print('Filtering actions..')
             self.action_space.filter_action(self._filter_act)
             print('Done')
+        else:
+            self.filter_acts = False
 
         act_dim = self.get_action_size(self.action_space)
 
@@ -117,7 +119,8 @@ class PPOAgent(AgentWithConverter):
         self.extract_obs(observation_space)
 
         self.actor = actor_class(obs_dim,
-                                 act_dim, discrete=True,
+                                 act_dim,
+                                 discrete=True,
                                  **args['ac_args'])
         params = [
             core.count(module) for module in (self.actor.pi, self.actor.v)
@@ -137,7 +140,7 @@ class PPOAgent(AgentWithConverter):
 
         if self.args['schedule_pi_lr']:
             self.pi_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.pi_optimizer, patience=2, threshold=1e-3)
+                self.pi_optimizer, patience=2, threshold=1e-3, min_lr=1e-5)
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -148,11 +151,12 @@ class PPOAgent(AgentWithConverter):
 
         run_t = time.strftime('%Y-%m-%d-%H-%M-%S')
         self.path_time = run_t  # For model path
-        path = os.path.join(
-            'data',
-            env.name + args.get('env_name', '') + '_' + run_t)
+        path = os.path.join('data',
+                            env.name + args.get('env_name', '') + '_' + run_t)
 
         self.logger = SummaryWriter(log_dir=path)
+
+        print('\n..Init done')
 
     def _get_obs_size(self, obs_space):
         """
@@ -163,7 +167,7 @@ class PPOAgent(AgentWithConverter):
 
         for attr_name in self.args['obs_attributes']:
             start, end, _ = obs_space.get_indx_extract(attr_name)
-            size += (start - end)
+            size += (end - start)
 
         return size
 
@@ -239,8 +243,7 @@ class PPOAgent(AgentWithConverter):
 
         tmp = np.zeros(0, dtype=np.uint)  # TODO platform independant
         for obs_attr_name in self.args['obs_attributes']:
-            beg_, end_, _ = obs_space.get_indx_extract(
-                obs_attr_name)
+            beg_, end_, _ = obs_space.get_indx_extract(obs_attr_name)
             tmp = np.concatenate((tmp, np.arange(beg_, end_, dtype=np.uint)))
         self._indx_obs = tmp
         self._tmp_obs = np.zeros((1, tmp.shape[0]), dtype=np.float32)
@@ -254,7 +257,7 @@ class PPOAgent(AgentWithConverter):
             the observation
         """
 
-        obs_vec = observation.to_vec()
+        obs_vec = observation.to_vect()
         self._tmp_obs[:] = obs_vec[self._indx_obs]
 
         return self._tmp_obs
@@ -313,7 +316,7 @@ class PPOAgent(AgentWithConverter):
             pi_loss.backward()
             self.pi_optimizer.step()
             if self.args['schedule_pi_lr']:
-                self.pi_scheduler.step()
+                self.pi_scheduler.step(pi_loss)
 
         self.logger.add_scalar('PiStopIter', i, epoch)
         pi_loss = pi_loss.item()
@@ -375,7 +378,7 @@ class PPOAgent(AgentWithConverter):
 
     def run_training_loop(self):
         start_time = time.time()
-        obs = self.env.reset()
+        obs = self.convert_obs(self.env.reset())
         eps_len, eps_ret = 0, 0
 
         n_epochs = self.args['n_epochs']
@@ -383,26 +386,34 @@ class PPOAgent(AgentWithConverter):
         max_eps_len = self.args['max_eps_len']
 
         err_act_msg = [
-            'is_illegal', 'is_ambiguous', 'is_dipatching_illegal',
+            'is_illegal', 'is_ambiguous', 'is_dispatching_illegal',
             'is_illegal_reco'
         ]
+        log_steps = self.args['log_step_freq']
 
         for t in range(n_epochs):
             eps_len_logs, eps_ret_log = [], []
             for step in range(steps_per_epoch):
-                obs = self.convert_obs(obs)  # Encode state
+
+                # Taking really long
+                if log_steps and not step % log_steps:
+                    print(f'epoch: {t}, step: {step}')
 
                 a, v, log_p = self.actor.step(
                     torch.from_numpy(obs).type(torch.float32))
+                act = a
 
                 # log v
                 self.v_logs.append(v)
-                obs_n, rew, done, info = self.env.step(self.convert(act))
+                obs_n, rew, done, info = self.env.step(self.convert_act(a[0]))
 
                 obs_n = self.convert_obs(obs_n)
 
                 # Invalid action
-                [print(a, info) if info[err_msg] for err_msg in err_act_msg]
+                _ = [
+                    print(a, err_msg) for err_msg in err_act_msg
+                    if info[err_msg]
+                ]
 
                 eps_len += 1
                 eps_ret += rew
@@ -427,7 +438,10 @@ class PPOAgent(AgentWithConverter):
                         eps_ret_log += [eps_ret]
 
                     self.memory.end_eps(value=last_v)
+
                     obs = self.env.reset()
+                    obs = self.convert_obs(obs)
+
                     eps_len, eps_ret = 0, 0
 
             self._update(t + 1)
