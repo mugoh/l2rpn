@@ -1,6 +1,7 @@
 import os
 
 import torch.nn as nn
+import torch
 
 from ppo import PPOAgent
 
@@ -73,12 +74,14 @@ def main():
         'steps_per_epoch': 10000,
         'save_frequency': 100,
         'training': True,
-        'log_step_freq': 100,
 
         # If true use torch.torch.optim.lr_scheduler.ReduceLROnPlateau
         'schedule_pi_lr': True,
         'schedule_v_lr': False
     }
+
+    # Log step count 10 times
+    agent_args['log_step_freq'] = agent_args['steps_per_epoch'] / 10
 
     args = {
         'ac_args': ac_args,
@@ -87,6 +90,7 @@ def main():
         'gamma': .99,
         'lamda': .995,
         'save_path': 'PPO_MODEL.pt',
+        'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
         **agent_args,
         **train_args,
         **feature_args

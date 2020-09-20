@@ -19,7 +19,13 @@ class ReplayBuffer:
         Transitions buffer
         Stores transitions for a single episode
     """
-    def __init__(self, act_dim, obs_dim, size=4000, gamma=.98, lamda=.95):
+    def __init__(self,
+                 act_dim,
+                 obs_dim,
+                 size=4000,
+                 gamma=.98,
+                 lamda=.95,
+                 device=None):
         self.size = size
         self.gamma = gamma
         self.lamda = lamda
@@ -33,6 +39,7 @@ class ReplayBuffer:
         self.vals = np.zeros([size], dtype=np.float32)
 
         self.ptr, self.eps_end_ptr = 0, 0
+        self.device = device
 
     def store(self, act, states, values, rew, log_p):
         """
@@ -56,9 +63,9 @@ class ReplayBuffer:
 
         self.ptr = 0
         self.eps_end_ptr = 0
-        return torch.from_numpy(self.actions), torch.from_numpy(self.rewards), \
-            torch.from_numpy(self.states), torch.from_numpy(
-            self.adv), torch.from_numpy(self.log_prob)
+        return torch.from_numpy(self.actions).to(self.device), torch.from_numpy(self.rewards).to(self.device), \
+            torch.from_numpy(self.states).to(self.device), torch.from_numpy(
+            self.adv).to(self.device), torch.from_numpy(self.log_prob).to(self.device)
 
     def end_eps(self, value=0):
         """
@@ -101,6 +108,7 @@ class PPOAgent(AgentWithConverter):
 
         self.args = args
         self.env = env
+        self.device = args['device']
 
         if args['filter_acts']:
             self.filter_acts = True
@@ -121,7 +129,8 @@ class PPOAgent(AgentWithConverter):
         self.actor = actor_class(obs_dim,
                                  act_dim,
                                  discrete=True,
-                                 **args['ac_args'])
+                                 device=self.device,
+                                 **args['ac_args']).to(self.device)
         params = [
             core.count(module) for module in (self.actor.pi, self.actor.v)
         ]
@@ -131,7 +140,8 @@ class PPOAgent(AgentWithConverter):
                                    obs_dim,
                                    args['steps_per_epoch'],
                                    lamda=args['lamda'],
-                                   gamma=args['gamma'])
+                                   gamma=args['gamma'],
+                                   device=self.device)
 
         self.training = self.args['training']
 
@@ -400,7 +410,7 @@ class PPOAgent(AgentWithConverter):
                     print(f'epoch: {t}, step: {step}')
 
                 a, v, log_p = self.actor.step(
-                    torch.from_numpy(obs).type(torch.float32))
+                    torch.from_numpy(obs).type(torch.float32).to(self.device))
                 act = a
 
                 # log v
@@ -428,7 +438,8 @@ class PPOAgent(AgentWithConverter):
                     # terminated by max episode steps
                     if not done:
                         last_v = self.actor.step(
-                            torch.from_numpy(obs).type(torch.float32))[1]
+                            torch.from_numpy(obs).type(torch.float32).to(
+                                self.device))[1]
                     else:  # Agent terminated episode
                         last_v = 0
 
