@@ -231,13 +231,18 @@ class MLPActor(nn.Module):
                            size=size,
                            activation=activation)
 
-    def step(self, obs):
+    def step(self, obs, act_only=False):
         """
             Get value function estimate and action sample from pi
+
+            Returns only an action sample if `act_only` is True
         """
         with torch.no_grad():
             pi_new = self.pi.sample_action(obs)
             a = pi_new.sample()
+
+            if act_only:
+                return a
 
             v = self.v(obs)
             log_p = self.pi.log_p(pi_new, a)

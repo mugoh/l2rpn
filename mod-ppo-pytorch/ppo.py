@@ -220,6 +220,13 @@ class PPO:
         self.logger.add_scalar('loss/Delta-V', delta_v_loss, epoch)
         self.logger.add_scalar('Kl', kl, epoch)
 
+    def predict_action(self, obs):
+        """
+            Selects an action given an observation
+        """
+
+        return self.actor.step(obs, act_only=True)
+
     def run_training_loop(self):
         start_time = time.time()
         obs = self.env.reset()
