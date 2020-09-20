@@ -69,10 +69,10 @@ def main():
     }
 
     agent_args = {
-        'n_epochs': 100,
+        'n_epochs': 1000,
         'env_name': '',  # 'b_10000_plr_.1e-4',
         'steps_per_epoch': 10000,
-        'save_frequency': 100,
+        'save_frequency': 10,
         'training': True,
 
         # If true use torch.torch.optim.lr_scheduler.ReduceLROnPlateau

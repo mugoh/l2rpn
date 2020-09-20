@@ -232,4 +232,4 @@ class MLPActor(nn.Module):
             v = self.v(obs)
             log_p = self.pi.log_p(pi_new, a)
 
-        return a.numpy(), v.numpy(), log_p.numpy()
+        return a.cpu().numpy(), v.cpu().numpy(), log_p.cpu().numpy()
