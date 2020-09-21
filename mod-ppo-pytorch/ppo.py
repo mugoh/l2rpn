@@ -121,12 +121,16 @@ class PPOAgent(AgentWithConverter):
 
         act_dim = self.get_action_size(self.action_space)
 
-        obs_dim = self._get_obs_size(observation_space)
+        if self.args['filter_obs']:
+            # For obs extraction
+            self._tmp_obs, self._indx_obs = None, None
+            obs_dim = self._get_obs_size(observation_space)
 
-        # For obs extraction
-        self._tmp_obs, self._indx_obs = None, None
-        self.extract_obs(observation_space)
-        breakpoint()
+            self.extract_obs(observation_space)
+            self.filter_obs = True
+        else:
+            obs_dim = observation_space.size()
+            self.filter_obs = False
 
         self.actor = actor_class(obs_dim,
                                  act_dim,
@@ -151,8 +155,8 @@ class PPOAgent(AgentWithConverter):
                                        args['pi_lr'])
 
         if self.args['schedule_pi_lr']:
-            self.pi_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.pi_optimizer, patience=2, threshold=1e3, min_lr=1e-5)
+            self.pi_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.pi_optimizer, T_max=self.args['n_epochs'], eta_min=1e-6)
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -270,9 +274,11 @@ class PPOAgent(AgentWithConverter):
         """
 
         obs_vec = observation.to_vect()
-        self._tmp_obs[:] = obs_vec[self._indx_obs]
+        if self.filter_obs:
+            self._tmp_obs[:] = obs_vec[self._indx_obs]
+            return self._tmp_obs
 
-        return self._tmp_obs
+        return obs_vec
 
     def my_act(self, transformed_obs, reward=None, done=False):
         """
@@ -327,8 +333,9 @@ class PPOAgent(AgentWithConverter):
 
             pi_loss.backward()
             self.pi_optimizer.step()
-            if self.args['schedule_pi_lr']:
-                self.pi_scheduler.step(pi_loss)
+
+        if self.args['schedule_pi_lr']:
+            self.pi_scheduler.step()
 
         self.logger.add_scalar('PiStopIter', i, epoch)
         pi_loss = pi_loss.item()
@@ -364,13 +371,14 @@ class PPOAgent(AgentWithConverter):
             Selects an action given an observation
         """
 
-        return self.actor.step(obs, act_only=True)
+        return self.actor.step(torch.from_numpy(obs).to(self.device),
+                               act_only=True)
 
     def load(self, path='PPO_MODEL.pt'):
         """
             Loads trained actor network
         """
-        self.actor.load_state_dict(torch.load(path))
+        self.actor.load_state_dict(torch.load(path, map_location=self.device))
         print(f'Loaded model from: {path}')
 
         if not self.training:
