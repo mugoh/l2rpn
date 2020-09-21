@@ -68,10 +68,21 @@ def main():
     train_args = {
         'pi_train_n_iters': 80,
         'v_train_n_iters': 80,
-        'max_kl': .01,  # TODO remember to take this back to .01
         'max_eps_len': 500,
         'clip_ratio': .2
     }
+
+    # Anneal target kl by (max - min)/fin_epoch
+    kl_args = {
+        'max_kl_start': 1.,
+        'min_kl_stop': .01,
+        'kl_fin_epoch': 100,
+
+        # If false, use target_kl throughout
+        'anneal_kl': True,
+        'target_kl': .01,  # TODO remember to take this back to .01
+    }
+
     feature_args = {
         # observation attr used in training
 
@@ -139,7 +150,8 @@ def main():
         'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
         **agent_args,
         **train_args,
-        **feature_args
+        **feature_args,
+        **kl_args
     }
 
     dir_name = os.path.dirname(os.path.abspath('__file__'))

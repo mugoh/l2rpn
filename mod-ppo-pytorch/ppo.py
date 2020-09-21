@@ -151,6 +151,9 @@ class PPOAgent(AgentWithConverter):
 
         self.training = self.args['training']
 
+        self.max_kl = self.args['max_kl_start']
+        self.min_kl = self.args['min_kl_stop']
+
         self.pi_optimizer = optim.Adam(self.actor.pi.parameters(),
                                        args['pi_lr'])
 
@@ -228,6 +231,19 @@ class PPOAgent(AgentWithConverter):
         v_loss = ((v_pred - rew_b)**2).mean()
 
         return v_loss
+
+    def get_kl(self, itr):
+        """
+            Return KL target based on current epoch
+        """
+        T_epoch = self.args['kl_fin_epoch']
+
+        if itr > T_epoch:
+            return self.min_kl
+
+        rate = (self.max_kl - self.min_kl) / T_epoch
+
+        return self.max_kl - (rate * itr)
 
     def _filter_act(self, action):
         """
@@ -320,6 +336,9 @@ class PPOAgent(AgentWithConverter):
             'rew_b': rew_b
         }).item()
 
+        kl_target = self.get_kl(
+            epoch) if self.args['anneal_kl'] else self.args['target_kl']
+
         for i in range(train_args['pi_train_n_iters']):
             self.pi_optimizer.zero_grad()
             pi_loss, kl = self._compute_pi_loss(log_p_old=log_p_old,
@@ -327,8 +346,10 @@ class PPOAgent(AgentWithConverter):
                                                 adv_b=adv_b,
                                                 act_b=act_b)
 
-            if kl > 1.5 * train_args['max_kl']:  # Early stop for high Kl
-                print('Max kl reached: ', kl, '  iter: ', i)
+            # Early stop for high Kl
+            if kl > kl_target:
+                print('Max kl reached: ', kl, '[target: ', kl_target,
+                      '] iter: ', i)
                 break
 
             pi_loss.backward()
