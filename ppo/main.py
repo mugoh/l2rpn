@@ -24,6 +24,7 @@ class RewardPenalizeIllegal(L2RPNReward):
     """
         Only penalize for taking illegal actions
     """
+
     def __init__(self, **args):
 
         super(RewardPenalizeIllegal, self).__init__(**args)
@@ -55,19 +56,19 @@ def main():
     ac_args = {
         # obs: ~170-190, act_dim: ~200
         'pi': {
-            'hidden_sizes': [800, 600, 428, 400],
-            'size': 4,  # TODO change size to min 5
+            'hidden_sizes': [1024, 1024],
+            'size': 2,  # TODO change size to min 5
             'activation': nn.Tanh
         },
         'v': {
-            'hidden_sizes': [800, 600, 428, 390],
-            'size': 4,
+            'hidden_sizes': [1024, 1024],
+            'size': 2,
             'activation': nn.Tanh
         }
     }
     train_args = {
-        'pi_train_n_iters': 80,
-        'v_train_n_iters': 80,
+        'pi_train_n_iters': 580,
+        'v_train_n_iters': 580,
         'max_eps_len': 500,
         'clip_ratio': .2
     }
@@ -80,7 +81,7 @@ def main():
 
         # If false, use target_kl throughout
         'anneal_kl': True,
-        'target_kl': .01,  # TODO remember to take this back to .01
+        'target_kl': .1,  # TODO remember to take this back to .01
     }
 
     feature_args = {
@@ -110,9 +111,9 @@ def main():
         'kwargs_converters': {
             'all_actions': None,
             'set_line_status': True,
-            'set_topo_vect': False,
+            'set_topo_vect': True,
             'redispatch': True,
-            'change_bus_vect': False
+            'change_bus_vect': True
         },
 
         # Whether to perform action filtering
@@ -142,8 +143,8 @@ def main():
 
     args = {
         'ac_args': ac_args,
-        'pi_lr': 1e-4,
-        'v_lr': 5e-4,
+        'pi_lr': 1e-5,
+        'v_lr': 1e-5,
         'gamma': .99,
         'lamda': .995,
         'save_path': 'PPO_MODEL.pt',  # CUDA runs out of memory

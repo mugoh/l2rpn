@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 import numpy as np
 from gym.spaces import Discrete
@@ -83,6 +82,7 @@ class MLPCritic(nn.Module):
         Agent Critic
         Estmates value function
     """
+
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation, size=2):
         super(MLPCritic, self).__init__()
 
@@ -123,6 +123,7 @@ class MLPGaussianPolicy(Actor):
     """
         Gaussian Policy for stochastic actions
     """
+
     def __init__(self,
                  obs_dim,
                  act_dim,
@@ -163,6 +164,7 @@ class CategoricalPolicy(Actor):
     """
         Categorical Policy for discrete action spaces
     """
+
     def __init__(self,
                  obs_dim,
                  act_dim,
@@ -198,6 +200,7 @@ class MLPActor(nn.Module):
     """
         Agent actor Net
     """
+
     def __init__(self,
                  obs_dim,
                  act_dim,
