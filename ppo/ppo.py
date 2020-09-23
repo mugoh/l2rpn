@@ -19,6 +19,7 @@ class ReplayBuffer:
         Transitions buffer
         Stores transitions for a single episode
     """
+
     def __init__(self,
                  act_dim,
                  obs_dim,
@@ -169,7 +170,7 @@ class PPOAgent(AgentWithConverter):
         self.first_run_ret = None
 
         run_t = time.strftime('%Y-%m-%d-%H-%M-%S')
-        self.path_time = run_t  # For model path
+        self.path_time = time.strftime('%Y-%m-%d')  # For model path
         path = os.path.join('data',
                             env.name + args.get('env_name', '') + '_' + run_t)
 

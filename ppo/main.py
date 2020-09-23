@@ -55,12 +55,12 @@ def main():
     ac_args = {
         # obs: ~170-190, act_dim: ~200
         'pi': {
-            'hidden_sizes': [400, 400, 328, 200],
+            'hidden_sizes': [800, 600, 428, 400],
             'size': 4,  # TODO change size to min 5
             'activation': nn.Tanh
         },
         'v': {
-            'hidden_sizes': [400, 328, 328, 190],
+            'hidden_sizes': [800, 600, 428, 390],
             'size': 4,
             'activation': nn.Tanh
         }
@@ -101,8 +101,8 @@ def main():
             "time_before_cooldown_line",
             "time_before_cooldown_sub",
             "timestep_overflow",
-            "line_status"
-            # "rho"
+            "line_status",
+            "rho"
             # 'month'
         ],
 
@@ -128,7 +128,7 @@ def main():
     agent_args = {
         'n_epochs': 1000,
         'env_name': '',  # 'b_10000_plr_.1e-4',
-        'steps_per_epoch': 200,
+        'steps_per_epoch': 250,
         'save_frequency': 5,
         'training': True,
 
@@ -155,7 +155,7 @@ def main():
     }
 
     dir_name = os.path.dirname(os.path.abspath('__file__'))
-    save_dir = os.path.join(dir_name, '.models')
+    save_dir = os.path.join(dir_name, 'models')
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     args['save_path'] = os.path.join(save_dir, args.get('save_path'))

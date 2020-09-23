@@ -1,6 +1,0 @@
-scipy==1.5.2
-torch==1.6.0+cpu
-torchvision==0.7.0+cpu
-gym==0.17.2
-numpy==1.19.1
-mujoco-py==2.0.2.13
