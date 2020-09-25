@@ -133,6 +133,8 @@ class PPOAgent(AgentWithConverter):
             obs_dim = observation_space.size()
             self.filter_obs = False
 
+        print('dims', 'obs: ', obs_dim, '  act: ', act_dim)
+
         self.actor = actor_class(obs_dim,
                                  act_dim,
                                  discrete=True,

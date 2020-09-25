@@ -36,7 +36,7 @@ class RewardPenalizeIllegal(L2RPNReward):
     def __call__(self, action, env, has_error, is_done, is_illegal,
                  is_ambiguous):
         if has_error or is_illegal or is_ambiguous:
-            rew = -100
+            rew = self.reward_min
         else:
             rew = super().__call__(action, env, has_error, is_done, is_illegal,
                                    is_ambiguous)
@@ -50,7 +50,7 @@ def main():
         Ppo runner
     """
 
-    env = grid2op.make("rte_case14_realistic",
+    env = grid2op.make("l2rpn_neurips_2020_track1_large",
                        backend=backend,
                        reward_class=RewardPenalizeIllegal)
     ac_args = {
@@ -58,25 +58,25 @@ def main():
         'pi': {
             'hidden_sizes': [1024, 1024],
             'size': 2,  # TODO change size to min 5
-            'activation': nn.Tanh
+            'activation': nn.LeakyReLU
         },
         'v': {
             'hidden_sizes': [1024, 1024],
             'size': 2,
-            'activation': nn.Tanh
+            'activation': nn.LeakyReLU
         }
     }
     train_args = {
         'pi_train_n_iters': 580,
         'v_train_n_iters': 580,
-        'max_eps_len': 500,
+        'max_eps_len': 150,
         'clip_ratio': .2
     }
 
     # Anneal target kl by (max - min)/fin_epoch
     kl_args = {
-        'max_kl_start': 1.,
-        'min_kl_stop': .01,
+        'max_kl_start': 5.,
+        'min_kl_stop': .1,
         'kl_fin_epoch': 100,
 
         # If false, use target_kl throughout
@@ -127,7 +127,7 @@ def main():
     }
 
     agent_args = {
-        'n_epochs': 1000,
+        'n_epochs': 5000,
         'env_name': '',  # 'b_10000_plr_.1e-4',
         'steps_per_epoch': 250,
         'save_frequency': 5,
@@ -139,13 +139,13 @@ def main():
     }
 
     # Log step count 10 times
-    agent_args['log_step_freq'] = agent_args['steps_per_epoch'] / 5
+    agent_args['log_step_freq'] = agent_args['steps_per_epoch'] // 3
 
     args = {
         'ac_args': ac_args,
         'pi_lr': 1e-5,
         'v_lr': 1e-5,
-        'gamma': .99,
+        'gamma': .98,
         'lamda': .995,
         'save_path': 'PPO_MODEL.pt',  # CUDA runs out of memory
         'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
