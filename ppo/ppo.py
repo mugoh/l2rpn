@@ -501,8 +501,12 @@ class PPOAgent(AgentWithConverter):
             # MaxEpisodeLen = np.max(eps_len_logs)
             # MinEpsiodeLen = np.min(eps_len_logs)
             AverageEpsReturn = np.mean(eps_ret_log)
-            MaxEpsReturn = np.max(eps_ret_log)
-            MinEpsReturn = np.min(eps_ret_log)
+            try:
+                MaxEpsReturn = np.max(eps_ret_log)
+                MinEpsReturn = np.min(eps_ret_log)
+            except ValueError:
+                MaxEpsReturn = 0
+                MinEpsReturn = 0
 
             self.logger.add_scalar('EpsReturn/Max', MaxEpsReturn, l_t)
             self.logger.add_scalar('EpsReturn/Min', MinEpsReturn, l_t)
