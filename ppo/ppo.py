@@ -3,6 +3,7 @@ import torch
 import torch.optim as optim
 
 from torch.utils.tensorboard import SummaryWriter
+from torch.cuda.amp import autocast
 
 import time
 import os
@@ -123,11 +124,14 @@ class PPOAgent(AgentWithConverter):
         act_dim = self.get_action_size(self.action_space)
 
         if self.args['filter_obs']:
+            print('filtering observations..')
             # For obs extraction
             self._tmp_obs, self._indx_obs = None, None
             obs_dim = self._get_obs_size(observation_space)
 
             self.extract_obs(observation_space)
+            print('done\n')
+
             self.filter_obs = True
         else:
             obs_dim = observation_space.size()
@@ -162,7 +166,7 @@ class PPOAgent(AgentWithConverter):
 
         if self.args['schedule_pi_lr']:
             self.pi_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.pi_optimizer, T_max=self.args['n_epochs'], eta_min=1e-6)
+                self.pi_optimizer, T_max=self.args['max_pi_epoch'], eta_min=self.args['min_pi_lr'])
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -177,6 +181,8 @@ class PPOAgent(AgentWithConverter):
                             env.name + args.get('env_name', '') + '_' + run_t)
 
         self.logger = SummaryWriter(log_dir=path)
+        self.pi_scaler = torch.cuda.amp.GradScaler()
+        self.v_scaler = torch.cuda.amp.GradScaler()
 
         print('\n..Init done')
 
@@ -212,15 +218,16 @@ class PPOAgent(AgentWithConverter):
         """
         clip_ratio = self.args['clip_ratio']
 
-        # returns new_pi_normal_distribution, logp_act
-        _, log_p_ = self.actor.pi(obs_b, act_b)
-        log_p_ = log_p_.type(torch.float32)  # From torch.float64
+        with autocast():
+            # returns new_pi_normal_distribution, logp_act
+            _, log_p_ = self.actor.pi(obs_b, act_b)
+            log_p_ = log_p_.type(torch.float32)  # From torch.float64
 
-        pi_ratio = torch.exp(log_p_ - log_p_old)
-        min_adv = torch.where(adv_b >= 0, (1 + clip_ratio) * adv_b,
-                              (1 - clip_ratio) * adv_b)
+            pi_ratio = torch.exp(log_p_ - log_p_old)
+            min_adv = torch.where(adv_b >= 0, (1 + clip_ratio) * adv_b,
+                                  (1 - clip_ratio) * adv_b)
 
-        pi_loss = -torch.mean(torch.min(pi_ratio * adv_b, min_adv))
+            pi_loss = -torch.mean(torch.min(pi_ratio * adv_b, min_adv))
 
         return pi_loss, (log_p_old - log_p_).mean().item()  # kl
 
@@ -230,8 +237,9 @@ class PPOAgent(AgentWithConverter):
         """
         obs_b, rew_b = data['obs_b'], data['rew_b']
 
-        v_pred = self.actor.v(obs_b)
-        v_loss = ((v_pred - rew_b)**2).mean()
+        with autocast():
+            v_pred = self.actor.v(obs_b)
+            v_loss = ((v_pred - rew_b)**2).mean()
 
         return v_loss
 
@@ -304,7 +312,7 @@ class PPOAgent(AgentWithConverter):
             Used by the agent to decide on action to take
 
             Returns an `encoded_action` which is reconverted
-            by the inherited `self.convert_act` into a valid
+          by the inherited `self.convert_act` into a valid
             action that can be taken in the env
 
 
@@ -355,8 +363,10 @@ class PPOAgent(AgentWithConverter):
                       '] iter: ', i)
                 break
 
-            pi_loss.backward()
-            self.pi_optimizer.step()
+            self.pi_scaler.scale(pi_loss).backward()
+            self.pi_scaler.step(self.pi_optimizer)
+
+            self.pi_scaler.update()
 
         if self.args['schedule_pi_lr']:
             self.pi_scheduler.step()
@@ -368,8 +378,10 @@ class PPOAgent(AgentWithConverter):
             self.v_optimizer.zero_grad()
             v_loss = self._compute_v_loss({'obs_b': obs_b, 'rew_b': rew_b})
 
-            v_loss.backward()
-            self.v_optimizer.step()
+            self.v_scaler.scale(v_loss).backward()
+            self.v_scaler.step(self.v_optimizer)
+
+            self.v_scaler.update()
 
         v_loss = v_loss.item()
 

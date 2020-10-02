@@ -36,7 +36,7 @@ class RewardPenalizeIllegal(L2RPNReward):
     def __call__(self, action, env, has_error, is_done, is_illegal,
                  is_ambiguous):
         if has_error or is_illegal or is_ambiguous:
-            rew = self.reward_min
+            rew = -1000
         else:
             rew = super().__call__(action, env, has_error, is_done, is_illegal,
                                    is_ambiguous)
@@ -58,12 +58,12 @@ def main():
         'pi': {
             'hidden_sizes': [1024, 1024],
             'size': 2,  # TODO change size to min 5
-            'activation': nn.LeakyReLU
+            'activation': nn.Tanh
         },
         'v': {
             'hidden_sizes': [1024, 1024],
             'size': 2,
-            'activation': nn.LeakyReLU
+            'activation': nn.Tanh
         }
     }
     train_args = {
@@ -75,8 +75,8 @@ def main():
 
     # Anneal target kl by (max - min)/fin_epoch
     kl_args = {
-        'max_kl_start': 5.,
-        'min_kl_stop': .1,
+        'max_kl_start': 10.,
+        'min_kl_stop': 5,
         'kl_fin_epoch': 100,
 
         # If false, use target_kl throughout
@@ -135,7 +135,11 @@ def main():
 
         # If true use torch.torch.optim.lr_scheduler.ReduceLROnPlateau
         'schedule_pi_lr': True,
-        'schedule_v_lr': False
+        'schedule_v_lr': False,
+
+        # Use if schedule_pi_lr is True
+        'max_pi_epoch': 100,  # Final epoch to anneal pi lr
+        'min_pi_lr': 1e-7  # Final pi lr
     }
 
     # Log step count 10 times
@@ -143,7 +147,7 @@ def main():
 
     args = {
         'ac_args': ac_args,
-        'pi_lr': 1e-5,
+        'pi_lr': 3e-5,
         'v_lr': 1e-5,
         'gamma': .98,
         'lamda': .995,
