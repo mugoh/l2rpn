@@ -474,7 +474,7 @@ class PPOAgent(AgentWithConverter):
                 eps_len += 1
                 eps_ret += rew
 
-                self.memory.store(a, obs, values=v, log_p=log_p, rew=eps_ret)
+                self.memory.store(a, obs, values=v, log_p=log_p, rew=rew)
 
                 obs = obs_n
 
