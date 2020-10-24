@@ -4,6 +4,8 @@
 
 import os
 import typing
+import time
+
 
 import torch
 import torch.nn as nn
@@ -12,6 +14,7 @@ import torch.optim as optim
 import core
 
 from worker import Worker
+import constants
 
 
 class A3C(nn.Module):
@@ -19,7 +22,11 @@ class A3C(nn.Module):
         self.actor_lr = .001
         self.critic_lr = .005
         self.gamma = .98  # discount factor
+        self.lamda = None
         self.n_steps = 10000  # Env training steps
+
+        self.state_size = state_size
+        self.action_size = action_size
 
         cuda = torch.cuda.is_available()
         self.n_workers = torch.cuda.device_count(
@@ -29,6 +36,9 @@ class A3C(nn.Module):
         self.device = 'cpu' if not cuda else 'cuda'
 
         self.actor, self.critic = self.build_nets(state_size, action_size)
+
+        constants.init()
+        print('const eps steps: ', constants.EPISODE_STEPS)
 
     def build_nets(self, state_size: int, action_size: int) -> typing.Tuple[nn.Module, nn.Module]:
         """
@@ -97,6 +107,9 @@ class A3C(nn.Module):
 
         torch.save(state_dict, path)
 
+    def forward(self, x):
+        ...
+
     def train_workers(self):
         """
             Runs the training loop for A3C agents
@@ -104,8 +117,12 @@ class A3C(nn.Module):
             Separate threads are started for the
             number of workers
         """
-
-        workers = [Worker(i, *args) for i in range(self.n_workers)]
+        args = dict(actor=self.actor,
+                    critic=self.critic,
+                    gamma=self.gamma,
+                    lamda=self.lamda or self.gamma / 1.005)
+        workers = [Worker(i, self.action_size, self.state_size, **args)
+                   for i in range(self.n_workers)]
 
         for worker in workers:
             worker.start()
