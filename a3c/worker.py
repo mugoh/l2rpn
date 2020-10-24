@@ -10,6 +10,8 @@ from grid2op.Reward import L2RPNSandBoxScore
 
 import constants
 
+import numpy as np
+
 
 class Worker(Thread):
     """
@@ -49,7 +51,7 @@ class Worker(Thread):
 
         episode = 0
 
-        print(f'Staring agent: {self.worker_idx}\n')
+        print(f'Starting agent: {self.worker_idx}\n')
 
         env = grid2op.make(
             self.env_name, reward_class=L2RPNSandBoxScore, difficulty='competition')
@@ -61,3 +63,64 @@ class Worker(Thread):
             time_step_end = env.chronics_handler.max_timestep() - 2
 
             print('time step end: ', time_step_end)
+
+            time_hour = 0
+            score = 0
+
+            time_step = 0
+            non_zero_actions = 0
+
+            while True:
+
+                if min(state.rho < .8):
+                    action = 0
+                else:
+                    action = self.get_action(state, env, state)
+
+                action_vect = constants.actions_array[action:, ]
+
+                act = env.action_space({})
+                act.from_vector(action_vect)
+
+                n_state, rew, done, info = env.step(act)
+
+                reward = self.process_reward(reward)
+
+                if done:
+                    score += -100  # Penalty for grid failure
+                    self.store(state, action, reward)
+
+                    p_d = np.sum(state.prod_p) - np.sum(state.load_p)
+                    print(f'Done at episode: {episode}')
+                    print(f'Env timestep: {env.time_stamp}')
+                    print(f'Power deficiency: {p_d}')
+                else:
+                    ...
+
+    def store(self, state, action, reward):
+        """
+            Stores a transition in memory
+        """
+
+        self.states.append(state)
+        act = np.zeros(self.action_dim)
+
+        act[action] = 1
+
+        self.actions.append(act)
+        self.rewards.append(reward)
+
+    def get_action(self, env, state):
+        """
+            Predicts an action for a given state
+        """
+        ...
+        return 0
+
+    @classmethod
+    def process_reward(cls, rew: float) -> float:
+        """
+            Scales the raw reward
+        """
+
+        return 50 - rew / 100
