@@ -64,7 +64,7 @@ class Critic(nn.Module):
         net_layers = mlp(hidden_size[0], hidden_layers=hidden_size[1:] + [1],
                          activation=nn.ReLU, size=2, output_activation=nn.Identity, as_list=True)
 
-        self.act_prob = nn.Sequential(self.fc1, *net_layers[:])
+        self.value_f = nn.Sequential(self.fc1, *net_layers[:])
 
         def forward(self, x):
-            return self.act_prob(x)
+            return self.value_f(x)
