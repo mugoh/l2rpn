@@ -11,12 +11,15 @@ import torch.optim as optim
 
 import core
 
+from worker import Worker
+
 
 class A3C(nn.Module):
     def __init__(self, state_size, action_size):
         self.actor_lr = .001
         self.critic_lr = .005
         self.gamma = .98  # discount factor
+        self.n_steps = 10000  # Env training steps
 
         cuda = torch.cuda.is_available()
         self.n_workers = torch.cuda.device_count(
@@ -93,3 +96,24 @@ class A3C(nn.Module):
         }
 
         torch.save(state_dict, path)
+
+    def train_workers(self):
+        """
+            Runs the training loop for A3C agents
+
+            Separate threads are started for the
+            number of workers
+        """
+
+        workers = [Worker(i, *args) for i in range(self.n_workers)]
+
+        for worker in workers:
+            worker.start()
+
+        while len(all_scores) < self.n_steps:
+            time.sleep(400)  # save checkpoint every 400 ms
+
+            print(f'\nCurrent scores: {all_scores}')
+
+            self.save(episode)
+            print('\nCheckpoint saved at episode: {episode}\n')
