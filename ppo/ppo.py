@@ -165,8 +165,13 @@ class PPOAgent(AgentWithConverter):
                                        args['pi_lr'])
 
         if self.args['schedule_pi_lr']:
-            self.pi_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.pi_optimizer, T_max=self.args['max_pi_epoch'], eta_min=self.args['min_pi_lr'])
+            self.pi_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.pi_optimizer,
+                patience=5,
+                verbose=True
+                # min_lr=self.args['min_pi_lr']
+                # T_max=self.args['max_pi_epoch'], eta_min=self.args['min_pi_lr']
+            )
         self.v_optimizer = optim.Adam(self.actor.v.parameters(), args['v_lr'])
 
         # Hold epoch losses for logging
@@ -369,7 +374,7 @@ class PPOAgent(AgentWithConverter):
             self.pi_scaler.update()
 
         if self.args['schedule_pi_lr']:
-            self.pi_scheduler.step()
+            self.pi_scheduler.step(pi_loss)
 
         self.logger.add_scalar('PiStopIter', i, epoch)
         pi_loss = pi_loss.item()
