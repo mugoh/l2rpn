@@ -75,7 +75,7 @@ class Worker(Thread):
                 if min(state.rho < .8):
                     action = 0
                 else:
-                    action = self.get_action(state, env, state)
+                    action = self.get_action(env, state)
 
                 action_vect = constants.actions_array[action:, ]
 
@@ -84,18 +84,38 @@ class Worker(Thread):
 
                 n_state, rew, done, info = env.step(act)
 
-                reward = self.process_reward(reward)
+                reward = self.process_reward(rew)
 
                 if done:
                     score += -100  # Penalty for grid failure
-                    self.store(state, action, reward)
+                    self.store(self._convert_obs(state), action, -100)
 
-                    p_d = np.sum(state.prod_p) - np.sum(state.load_p)
                     print(f'Done at episode: {episode}')
                     print(f'Env timestep: {env.time_stamp}')
-                    print(f'Power deficiency: {p_d}')
+
+                    state = np.zeros([1, self.state_size])  # reset
                 else:
-                    ...
+                    state = n_state
+                    # elapsed time in hours
+                    time_hour = state_obs.hour_of_day + state.day * 24
+
+                    # Penalize lines close to the current limit
+                    # Current limit is reached when a line is overloaded
+                    # e.g a line disconnects leaving unbalanced power in
+                    # the others
+                    over_lm_current = 50 * \
+                        np.sum((state.rho - 1)[state.rho > 1])
+
+                    score += (reward - over_lm_current)
+
+                    score = -10 if score < -10 else score
+                    self.store(state, action, score)
+
+                p_d = np.sum(state.prod_p) - np.sum(state.load_p)
+                print(f'Power deficiency: {p_d}')
+
+                time_step += 1
+                non_zero_actions += 0 if not action else 1
 
     def store(self, state, action, reward):
         """
@@ -110,6 +130,22 @@ class Worker(Thread):
         self.actions.append(act)
         self.rewards.append(reward)
 
+    def _convert_obs(self, state: np.array) -> np.array:
+        """
+            Alters the features of the vector observation
+            to give a state with usable properties
+        """
+        obs = state.to_vect()
+        numerical_obs = obs[6:713]
+
+        numerical_obs[649:706] = numerical_obs[649:706] * 100
+
+        topological_vect = state.topo_vect
+        usable_obs = np.hstack(
+            (numerical_obs, topological_vect, topological_vect - 1, state.line_status))
+
+        return usable_obs
+
     def get_action(self, env, state):
         """
             Predicts an action for a given state
@@ -117,7 +153,7 @@ class Worker(Thread):
         ...
         return 0
 
-    @classmethod
+    @ classmethod
     def process_reward(cls, rew: float) -> float:
         """
             Scales the raw reward
