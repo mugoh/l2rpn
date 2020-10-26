@@ -82,7 +82,7 @@ class Worker(Thread):
                 act = env.action_space({})
                 act.from_vector(action_vect)
 
-                n_state, rew, done, info = env.step(act)
+                n_state, rew, done, _ = env.step(act)
 
                 reward = self.process_reward(rew)
 
@@ -97,7 +97,7 @@ class Worker(Thread):
                 else:
                     state = n_state
                     # elapsed time in hours
-                    time_hour = state_obs.hour_of_day + state.day * 24
+                    time_hour = state.hour_of_day + state.day * 24
 
                     # Penalize lines close to the current limit
                     # Current limit is reached when a line is overloaded
@@ -116,6 +116,42 @@ class Worker(Thread):
 
                 time_step += 1
                 non_zero_actions += 0 if not action else 1
+
+                terminal = done or time_step >= time_step_end
+
+                logs = {
+                    'episode': episode,
+                    'average score': score/time_step,
+                    'final action': action,
+                    'end step': time_step,
+                    'no. non-zero-actions': non_zero_actions,
+                    'time-hr': time_hour
+                }
+
+                if terminal:
+                    print(
+                        f'\nStopped Thread: {self.worker_idx}: done: {done}\n')
+                    self._log(logs)
+
+                    constants.scores.append(score)
+                    episode += 1
+
+                    print('time window: {env.chronics_handler.max_timestep()}')
+                    self.update(done)
+                    break
+
+            if not time_step % self.batch_size:
+                self.update(done)
+            self._log(logs)
+
+    def _log(self, logs):
+        """
+            Log episode data
+        """
+
+        print('\n', '-' * 10)
+        for k, v in logs:
+            print(k, v)
 
     def store(self, state, action, reward):
         """
@@ -160,3 +196,10 @@ class Worker(Thread):
         """
 
         return 50 - rew / 100
+
+    def update(self, done: bool = True):
+        """
+            Trains the network at the end of each
+            episode
+        """
+        ...

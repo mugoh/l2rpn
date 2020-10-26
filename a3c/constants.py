@@ -17,3 +17,6 @@ def init():
 
     actions_arr = np.load('actions_array_useful.npz')
     actions_array = actions_arr['actions_array_useful']
+
+    global scores
+    scores = []
