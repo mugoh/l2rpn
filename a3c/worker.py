@@ -38,7 +38,7 @@ class Worker(Thread):
         self.worker_idx = index
         self.actor = args['actor']
         self.critic = args['critic']
-        self.optimizers = args['optimizers']
+        self.pi_optim, self.v_optim = args['optimizers']
 
         self.gamma = args['gamma']
         self.lamda = args['lamda']
@@ -49,6 +49,7 @@ class Worker(Thread):
         self.batch_size = batch_size
 
         self.device = args['device']
+        self.v_critierion = torch.nn.MSELoss()
 
     def run(self):
         """
@@ -209,6 +210,17 @@ class Worker(Thread):
 
         return 50 - rew / 100
 
+    def _compute_v_loss(self, obs_b, rew_b):
+        """
+            Finds value function loss
+        """
+
+        pred = self.critic(obs_b)
+
+        v_loss = self.v_critierion(pred, rew_b)
+
+        return v_loss
+
     def update(self, eps_terminated: bool = True):
         """
             Trains the network at the end of each
@@ -239,5 +251,14 @@ class Worker(Thread):
         deltas = self.rewards[:-1] + self.gamma * values[1:] - values[:-1]
         advantages = core.disc_cumsum(deltas, self.gamma * self.lamda)
 
+        obs_b, rew_b, act_b = self.states, self.rewards, self.actions
+
         def update_policy():
             ...
+
+        def update_v():
+            self.v_optim.zero_grad(none=True)
+            v_loss = self._compute_v_loss(obs_b, rew_b)
+
+            v_loss.backward()
+            self.v_optim.step()
