@@ -33,7 +33,7 @@ class A3C(nn.Module):
 
         ) if cuda else os.cpu_count()
 
-        self.device = 'cpu' if not cuda else 'cuda'
+        self.device = torch.device('cpu' if not cuda else 'cuda')
 
         self.actor, self.critic = self.build_nets(state_size, action_size)
 
@@ -120,7 +120,8 @@ class A3C(nn.Module):
         args = dict(actor=self.actor,
                     critic=self.critic,
                     gamma=self.gamma,
-                    lamda=self.lamda or self.gamma / 1.005)
+                    lamda=self.lamda or self.gamma / 1.005,
+                    device=self.device)
         workers = [Worker(i, self.action_size, self.state_size, **args)
                    for i in range(self.n_workers)]
 

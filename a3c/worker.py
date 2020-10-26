@@ -2,11 +2,14 @@
     A3C agent class for spawning threads
 """
 
+import typing
+
 from threading import Thread
 
 import grid2op
 from grid2op.Reward import L2RPNSandBoxScore
 
+import torch
 import numpy as np
 
 
@@ -37,11 +40,14 @@ class Worker(Thread):
         self.optimizers = args['optimizers']
 
         self.gamma = args['gamma']
+        self.lamda = args['lamda']
         self.action_dim = action_dim
         self.state_size = state_size
 
         self.env_name = env_name
         self.batch_size = batch_size
+
+        self.device = args['device']
 
     def run(self):
         """
@@ -138,11 +144,11 @@ class Worker(Thread):
                     episode += 1
 
                     print('time window: {env.chronics_handler.max_timestep()}')
-                    self.update(done)
+                    self.update(not done)
                     break
 
             if not time_step % self.batch_size:
-                self.update(done)
+                self.update(not done)
             self._log(logs)
 
     def _log(self, logs):
@@ -183,11 +189,10 @@ class Worker(Thread):
 
         return usable_obs
 
-    def get_action(self, env, state):
+    def get_action(self, env, state) -> int:
         """
             Predicts an action for a given state
         """
-        ...
         return 0
 
     @ classmethod
@@ -204,7 +209,26 @@ class Worker(Thread):
             episode
         """
 
-        final_v = 0
         if eps_terminated:
             # estimate value of end state
-        disc_rewards = core.disc_cumsum(self.rewards, self.gamma)
+            # when episode is terminated at max_eps
+            final_v = self.critic(torch.from_numpy(
+                self.states[-1])
+                .dtype(torch.float32)
+                .view(1, -1)
+                .to(self.device)
+            )
+        else:
+            final_v = 0
+
+        disc_rewards = core.disc_cumsum(self.rewards, self.gamma)[:-1]
+
+        values = self.critic(torch.from_numpy(
+            self.states)
+            .type(torch.float32)
+            .to(self.device)
+        )
+
+        # Estimate advantages using GAE
+        deltas = self.rewards[:-1] + self.gamma * values[1:] - values[:-1]
+        advantages = core.disc_cumsum(deltas, self.gamma * self.lamda)

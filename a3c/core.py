@@ -83,4 +83,4 @@ class Critic(nn.Module):
         self.value_f = nn.Sequential(self.fc1, *net_layers[:])
 
         def forward(self, x):
-            return self.value_f(x)
+            return self.value_f(x).squeeze(-1)
