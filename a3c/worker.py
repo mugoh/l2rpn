@@ -33,6 +33,7 @@ class Worker(Thread):
         self.states = []
         self.rewards = []
         self.actions = []
+        self.log_p = []
 
         self.worker_idx = index
         self.actor = args['actor']
@@ -79,9 +80,12 @@ class Worker(Thread):
 
             while True:
 
+                action, log_p = self.get_action(env, state)
+
                 if min(state.rho < .8):
                     action = 0
                 else:
+                    # If directly from prediction index[0]
                     action = self.get_action(env, state)
 
                 action_vect = constants.actions_array[action:, ]
@@ -95,7 +99,7 @@ class Worker(Thread):
 
                 if done:
                     score += -100  # Penalty for grid failure
-                    self.store(self._convert_obs(state), action, -100)
+                    self.store(self._convert_obs(state), action, log_p, -100)
 
                     print(f'Done at episode: {episode}')
                     print(f'Env timestep: {env.time_stamp}')
@@ -116,7 +120,7 @@ class Worker(Thread):
                     score += (reward - over_lm_current)
 
                     score = -10 if score < -10 else score
-                    self.store(state, action, score)
+                    self.store(self._convert_obs(state), action, log_p, score)
 
                 p_d = np.sum(state.prod_p) - np.sum(state.load_p)
                 print(f'Power deficiency: {p_d}')
@@ -160,7 +164,7 @@ class Worker(Thread):
         for k, v in logs:
             print(k, v)
 
-    def store(self, state, action, reward):
+    def store(self, state, action, log_p, reward):
         """
             Stores a transition in memory
         """
@@ -172,6 +176,7 @@ class Worker(Thread):
 
         self.actions.append(act)
         self.rewards.append(reward)
+        self.log_p.append(log_p)
 
     def _convert_obs(self, state: np.array) -> np.array:
         """
@@ -189,11 +194,12 @@ class Worker(Thread):
 
         return usable_obs
 
-    def get_action(self, env, state) -> int:
+    def get_action(self, env, state) -> typing.Iterable:
         """
             Predicts an action for a given state
         """
-        return 0
+        act = self.actor.step(state)
+        return 0, 0
 
     @ classmethod
     def process_reward(cls, rew: float) -> float:
@@ -212,7 +218,7 @@ class Worker(Thread):
         if eps_terminated:
             # estimate value of end state
             # when episode is terminated at max_eps
-            final_v = self.critic(torch.from_numpy(
+            final_v = self.critic.predict_v(torch.from_numpy(
                 self.states[-1])
                 .dtype(torch.float32)
                 .view(1, -1)
@@ -223,7 +229,7 @@ class Worker(Thread):
 
         disc_rewards = core.disc_cumsum(self.rewards, self.gamma)[:-1]
 
-        values = self.critic(torch.from_numpy(
+        values = self.critic.predict_v(torch.from_numpy(
             self.states)
             .type(torch.float32)
             .to(self.device)
@@ -232,3 +238,6 @@ class Worker(Thread):
         # Estimate advantages using GAE
         deltas = self.rewards[:-1] + self.gamma * values[1:] - values[:-1]
         advantages = core.disc_cumsum(deltas, self.gamma * self.lamda)
+
+        def update_policy():
+            ...
