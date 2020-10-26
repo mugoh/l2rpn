@@ -48,9 +48,9 @@ def mlp(x,
     return nn.Sequential(*net_layers)
 
 
-class Actor(nn.Module):
+class CategoricalActor(nn.Module):
     """
-        Outputs the probability of each action
+        Outputs the probability of actions
     """
 
     def __init__(self, state_size: int, act_dim: int, hidden_size: list = [1000, 1000, 1000], **args):
@@ -61,10 +61,55 @@ class Actor(nn.Module):
         net_layers = mlp(hidden_size[0], hidden_layers=hidden_size[1:] + [act_dim],
                          activation=nn.ReLU, size=2, output_activation=nn.Sigmoid, as_list=True)
 
-        self.act_prob = nn.Sequential(self.fc1, *net_layers[:])
+        self.logits = nn.Sequential(self.fc1, *net_layers[:])
 
-        def forward(self, x):
-            return self.act_prob(x)
+        def forward(self, obs, act=None):
+            """
+                Gives a new policy under the
+                observatation.
+
+                If `act` is present, return the log
+                probabilities of the actions under
+                the new policy
+            """
+            pi = self.sample_policy(obs)
+            log_p = None
+
+            if act is not None:
+                log_p = self.log_p(pi, act.unsqueeze(-1))
+
+            return pi, log_p
+
+        def sample_policy(self, obs):
+            """
+                Returns a new policy on the given observations
+            """
+
+            act_probs = self.logits(obs)
+
+            pi = torch.distributions.Categorical(probs=act_probs)
+
+        @classmethod
+        def log_p(cls, pi, a):
+            """
+                Log probabilies of act w.r.t pi
+            """
+
+            return pi.log_p(a)
+
+        def step(self, obs, log_p: bool = True):
+            """
+                Predict action
+            """
+
+            log_p = None
+            with torch.no_grad():
+                pi = self.sample_policy(obs)
+                a = pi.sample()
+
+                log_p = self.log_p(pi, a)
+
+            return a.cpu().numpy(), log_p.cpu().numpy()
 
 
 class Critic(nn.Module):
@@ -84,3 +129,11 @@ class Critic(nn.Module):
 
         def forward(self, x):
             return self.value_f(x).squeeze(-1)
+
+        def predict_v(self, obs):
+            """
+                Predicts the value of a state
+            """
+
+            with torch.no_grad():
+                return self(obs).cpu().numpy()
