@@ -5,12 +5,13 @@
 from threading import Thread
 
 import grid2op
-
 from grid2op.Reward import L2RPNSandBoxScore
 
-import constants
-
 import numpy as np
+
+
+import constants
+import core
 
 
 class Worker(Thread):
@@ -197,9 +198,13 @@ class Worker(Thread):
 
         return 50 - rew / 100
 
-    def update(self, done: bool = True):
+    def update(self, eps_terminated: bool = True):
         """
             Trains the network at the end of each
             episode
         """
-        ...
+
+        final_v = 0
+        if eps_terminated:
+            # estimate value of end state
+        disc_rewards = core.disc_cumsum(self.rewards, self.gamma)

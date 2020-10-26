@@ -1,8 +1,24 @@
 """
     Actor and Critic Modules
 """
+import typing
+
 import torch
 import torch.nn as nn
+
+
+import numpy as np
+import scipy.signal
+
+
+def disc_cumsum(x: typing.List, disc: int) -> int:
+    """
+        Returns a time decayed discounted cumulative
+        sum of `x` with `disc` as the discounting factor
+    """
+
+    return scipy.signal.lfilter([1], [1, float(-disc)], x[::-1],
+                                axis=0)[::-1]
 
 
 def mlp(x,
