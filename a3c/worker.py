@@ -3,14 +3,17 @@
 """
 
 import typing
-
+import time
 from threading import Thread
+import os
 
 import grid2op
 from grid2op.Reward import L2RPNSandBoxScore
 
 import torch
-import Torch.Tensor as Tensor
+import torch.Tensor as Tensor
+from torch.utils.tensorboard import SummaryWriter
+
 import numpy as np
 
 
@@ -53,6 +56,17 @@ class Worker(Thread):
         self.v_critierion = torch.nn.MSELoss()
         self.clip_ratio = .2
 
+        self._setup_logger(env_name)
+
+    def _setup_logger(self, env_name: str):
+        run_t = time.strftime('%Y-%m-%d-%H-%M-%S')
+        self.path_time = time.strftime('%Y-%m-%d')  # For model path
+        path = os.path.join('data',
+                            env_name  # + args.get('env_name', '')
+                            + '_' + run_t)
+
+        self.logger = SummaryWriter(log_dir=path)
+
     def run(self):
         """
             Start thread
@@ -61,6 +75,7 @@ class Worker(Thread):
         global episode, episode_test
 
         episode = 0
+        eps_scores = []
 
         print(f'Starting agent: {self.worker_idx}\n')
 
@@ -125,6 +140,8 @@ class Worker(Thread):
                     score = -10 if score < -10 else score
                     self.store(self._convert_obs(state), action, log_p, score)
 
+                eps_scores.append(score)
+
                 p_d = np.sum(state.prod_p) - np.sum(state.load_p)
                 print(f'Power deficiency: {p_d}')
 
@@ -145,20 +162,21 @@ class Worker(Thread):
                 if terminal:
                     print(
                         f'\nStopped Thread: {self.worker_idx}: done: {done}\n')
-                    self._log(logs)
+                    self._log(logs, eps_scores, episode)
 
                     constants.scores.append(score)
                     episode += 1
 
                     print('time window: {env.chronics_handler.max_timestep()}')
-                    self.update(not done)
+                    self.update(episode, not done)
+                    eps_scores = []
                     break
 
             if not time_step % self.batch_size:
-                self.update(not done)
-            self._log(logs)
+                self.update(episode, not done)
+            self._log(logs, eps_scores, episode)
 
-    def _log(self, logs):
+    def _log(self, logs, eps_scores, eps):
         """
             Log episode data
         """
@@ -166,6 +184,11 @@ class Worker(Thread):
         print('\n', '-' * 10)
         for k, v in logs:
             print(k, v)
+
+        self.logger.add_scalar('Reward/Mean', np.mean(constants.scores), eps)
+        self.logger.add_scalar('Reward/Max', np.max(constants.scores), eps)
+        self.logger.add_scalar('Reward/Min', np.min(constants.scores), eps)
+        self.logger.add_scalar('EPS_Score/Average', np.mean(eps_scores), eps)
 
     def store(self, state, action, log_p, reward):
         """
@@ -240,7 +263,7 @@ class Worker(Thread):
 
         return loss, k_l
 
-    def update(self, eps_terminated: bool = True):
+    def update(self, epoch: int, eps_terminated: bool = True):
         """
             Trains the network at the end of each
             episode
@@ -282,9 +305,19 @@ class Worker(Thread):
             pi_loss.backward()
             self.pi_optim.step()
 
+            self.logger.add_scalar('loss/pi', pi_loss, epoch)
+            self.logger.add_scalar('KL', k_l, epoch)
+
         def update_v():
             self.v_optim.zero_grad(none=True)
             v_loss = self._compute_v_loss(obs_b, rew_b)
 
             v_loss.backward()
             self.v_optim.step()
+
+            self.logger.add_scalar('loss/V', v_loss, epoch)
+
+        update_policy()
+        update_v()
+
+        self.states, self.actions, self.rewards, self.log_p = [], [], [], []
