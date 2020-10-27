@@ -10,6 +10,7 @@ import grid2op
 from grid2op.Reward import L2RPNSandBoxScore
 
 import torch
+import Torch.Tensor as Tensor
 import numpy as np
 
 
@@ -50,6 +51,7 @@ class Worker(Thread):
 
         self.device = args['device']
         self.v_critierion = torch.nn.MSELoss()
+        self.clip_ratio = .2
 
     def run(self):
         """
@@ -221,6 +223,23 @@ class Worker(Thread):
 
         return v_loss
 
+    def _compute_pi_loss(self, obs_b: Tensor, act_b: Tensor, adv_b: Tensor, old_logp: Tensor) -> typing.Tuple:
+        """
+            Computes loss for the policy
+        """
+        _, log_p = self.actor(obs_b, act_b)
+
+        clip = self.clip_ratio
+
+        ratio = torch.exp(log_p - old_logp)
+
+        min_adv = torch.where(adv_b >= 0, (1+clip) * adv_b, (1-clip) * adv_b)
+
+        loss = -torch.min(min_adv, ratio).mean()
+        k_l = (old_logp - log_p).mean().item()
+
+        return loss, k_l
+
     def update(self, eps_terminated: bool = True):
         """
             Trains the network at the end of each
@@ -254,7 +273,14 @@ class Worker(Thread):
         obs_b, rew_b, act_b = self.states, self.rewards, self.actions
 
         def update_policy():
-            ...
+
+            self.pi_optim.zero_grad(none=True)
+
+            pi_loss, k_l = self._compute_pi_loss(
+                obs_b, act_b, advantages, self.log_p)
+
+            pi_loss.backward()
+            self.pi_optim.step()
 
         def update_v():
             self.v_optim.zero_grad(none=True)

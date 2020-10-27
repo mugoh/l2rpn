@@ -48,7 +48,7 @@ def mlp(x,
     return nn.Sequential(*net_layers)
 
 
-class CategoricalActor(nn.Module):
+class CategoricalPolicy(nn.Module):
     """
         Outputs the probability of actions
     """
