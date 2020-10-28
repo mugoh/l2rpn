@@ -228,13 +228,26 @@ class Worker(Thread):
 
             action = np.random.randint(self.action_dim, size=1)
             _, log_p = self.actor.step(
-                torch.from_numpy(action)
+                state,
+                act=torch.from_numpy(action)
                 .type(torch.float32)
                 .to(self.device))
 
             return action, log_p
-        act, log_p = self.actor.step(state)
-        return 0, 0
+
+        act_idx, log_p = self.actor.step(state)
+
+        act_idx = act_idx[0]
+
+        action_cls = env.action_space({})
+        action_cls.from_vect(constants.actions_array[act_idx, :])
+
+        # Simulate
+        obs_, rew_, done_, _ = state.simulate(action_cls)
+
+        if done_ or np.sum((obs_.rho - 1)[obs_.rho > 1.02]) > 0:
+            rew_ = self.process_reward(rew_)
+            rew_ = self.estimate_rew_update(obs_, rew_, done_)
 
     @ classmethod
     def process_reward(cls, rew: float) -> float:
@@ -243,6 +256,15 @@ class Worker(Thread):
         """
 
         return 50 - rew / 100
+
+    def estimate_rew_update(self, obs: typing.List, rew: typing.List, done: bool) -> float:
+        """
+            Estimates the reward update from penalty on overloaded
+            lines on the current state
+        """
+        rew = rew - 5 * sum((obs.rho - 1)[obs.rho > 1]) if not done else -100
+
+        return rew
 
     def _compute_v_loss(self, obs_b, rew_b):
         """
