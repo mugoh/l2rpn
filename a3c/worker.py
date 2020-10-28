@@ -54,7 +54,8 @@ class Worker(Thread):
 
         self.device = args['device']
         self.v_critierion = torch.nn.MSELoss()
-        self.clip_ratio = .2
+        self.clip_ratio = .2  # PPO advantage clip ratio
+        self.epsilon = .01  # exploration tradeoff
 
         self._setup_logger(env_name)
 
@@ -98,13 +99,11 @@ class Worker(Thread):
 
             while True:
 
+                # If directly from prediction index[0]
                 action, log_p = self.get_action(env, state)
 
                 if min(state.rho < .8):
                     action = 0
-                else:
-                    # If directly from prediction index[0]
-                    action = self.get_action(env, state)
 
                 action_vect = constants.actions_array[action:, ]
 
@@ -224,7 +223,17 @@ class Worker(Thread):
         """
             Predicts an action for a given state
         """
-        act = self.actor.step(state)
+        if np.random.uniform() < self.epsilon:
+            self.epsilon = np.max([.01, self.epsilon * .995])
+
+            action = np.random.randint(self.action_dim, size=1)
+            _, log_p = self.actor.step(
+                torch.from_numpy(action)
+                .type(torch.float32)
+                .to(self.device))
+
+            return action, log_p
+        act, log_p = self.actor.step(state)
         return 0, 0
 
     @ classmethod

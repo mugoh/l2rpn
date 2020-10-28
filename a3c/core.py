@@ -97,15 +97,21 @@ class CategoricalPolicy(nn.Module):
 
             return pi.log_p(a)
 
-        def step(self, obs, log_p: bool = True):
+        def step(self, obs, log_p: bool = True, act: typing.Iterable = None):
             """
                 Predict action
+
+                act: Action selected randomly during epsilon greedy
             """
 
             log_p = None
             with torch.no_grad():
                 pi = self.sample_policy(obs)
-                a = pi.sample()
+
+                if act is not None:
+                    a = act
+                else:
+                    a = pi.sample()
 
                 log_p = self.log_p(pi, a)
 

@@ -34,6 +34,7 @@ class A3C(nn.Module):
         ) if cuda else os.cpu_count()
 
         self.device = torch.device('cpu' if not cuda else 'cuda')
+        torch.backends.cudnn.benchmark = True
 
         self.actor, self.critic = self.build_nets(state_size, action_size)
 
