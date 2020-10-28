@@ -47,7 +47,7 @@ class A3C(nn.Module):
         """
         # Actor and critic share the first layer
 
-        actor = core.Actor(state_size, action_size)
+        actor = core.CategoricalPolicy(state_size, action_size)
         critic = core.Critic(shared_layer=actor.fc1,
                              state_size=state_size, act_dim=action_size)
 
@@ -129,10 +129,10 @@ class A3C(nn.Module):
         for worker in workers:
             worker.start()
 
-        while len(all_scores) < self.n_steps:
+        while len(constants.scores) < self.n_steps:
             time.sleep(400)  # save checkpoint every 400 ms
 
-            print(f'\nCurrent scores: {all_scores}')
+            print(f'\nCurrent scores: {constants.scores}')
 
-            self.save(episode)
-            print('\nCheckpoint saved at episode: {episode}\n')
+            self.save(constants.episode)
+            print('\nCheckpoint saved at episode: {constants.episode}\n')

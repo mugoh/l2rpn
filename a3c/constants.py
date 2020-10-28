@@ -20,3 +20,6 @@ def init():
 
     global scores
     scores = []
+
+    global episode
+    episode = 0

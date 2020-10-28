@@ -73,7 +73,7 @@ class Worker(Thread):
             Start thread
         """
 
-        global episode, episode_test
+        global episode
 
         episode = 0
         eps_scores = []
@@ -165,6 +165,7 @@ class Worker(Thread):
 
                     constants.scores.append(score)
                     episode += 1
+                    constants.episode = episode
 
                     print('time window: {env.chronics_handler.max_timestep()}')
                     self.update(episode, not done)
@@ -371,13 +372,15 @@ class Worker(Thread):
         else:
             final_v = 0
 
-        disc_rewards = core.disc_cumsum(self.rewards, self.gamma)[:-1]
+        self.rewards = disc_rewards = core.disc_cumsum(
+            self.rewards, self.gamma)[:-1]
 
         values = self.critic.predict_v(torch.from_numpy(
             self.states)
             .type(torch.float32)
             .to(self.device)
         )
+        values[-1] = final_v
 
         # Estimate advantages using GAE
         deltas = self.rewards[:-1] + self.gamma * values[1:] - values[:-1]
