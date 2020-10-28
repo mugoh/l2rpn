@@ -108,7 +108,7 @@ class Worker(Thread):
                 action_vect = constants.actions_array[action:, ]
 
                 act = env.action_space({})
-                act.from_vector(action_vect)
+                act.from_vect(action_vect)
 
                 n_state, rew, done, _ = env.step(act)
 
@@ -175,14 +175,14 @@ class Worker(Thread):
                 self.update(episode, not done)
             self._log(logs, eps_scores, episode)
 
-    def _log(self, logs, eps_scores, eps):
+    def _log(self, logs: typing.Dict, eps_scores: typing.Iterable, eps: int):
         """
             Log episode data
         """
 
         print('\n', '-' * 10)
-        for k, v in logs:
-            print(k, v)
+        for key, val in logs.items():
+            print(key, val)
 
         self.logger.add_scalar('Reward/Mean', np.mean(constants.scores), eps)
         self.logger.add_scalar('Reward/Max', np.max(constants.scores), eps)
@@ -223,19 +223,23 @@ class Worker(Thread):
         """
             Predicts an action for a given state
         """
+        state_input = torch.from_numpy(
+            self._convert_obs(state)).to(self.device)
+
         if np.random.uniform() < self.epsilon:
             self.epsilon = np.max([.01, self.epsilon * .995])
 
             action = np.random.randint(self.action_dim, size=1)
             _, log_p = self.actor.step(
-                state,
+                state_input,
                 act=torch.from_numpy(action)
                 .type(torch.float32)
                 .to(self.device))
 
             return action, log_p
 
-        act_idx, log_p = self.actor.step(state)
+        act_idx, log_p, action_probs = self.actor.step(
+            state_input, act_probs=True)
 
         act_idx = act_idx[0]
 
@@ -248,6 +252,34 @@ class Worker(Thread):
         if done_ or np.sum((obs_.rho - 1)[obs_.rho > 1.02]) > 0:
             rew_ = self.process_reward(rew_)
             rew_ = self.estimate_rew_update(obs_, rew_, done_)
+
+            additional_act = 1007
+            np.argsort(action_probs)[-1: -additional_act - 1:, -1]
+
+            action_cls = np.zeros(additional_act)
+            siml_reward = np.zeros(additional_act)
+
+            for i in range(additional_act):
+                action_cls[i] = env.action_space({})
+                action_cls[i].from_vect(
+                    constants.actions_array[action_probs[i], :])
+
+                obs, siml_reward, done, _ = state.simulate(action_cls[i])
+                siml_reward[i] = self.process_reward(siml_reward[i])
+                siml_reward[i] = self.estimate_rew_update(
+                    obs, siml_reward[i], done)
+
+                if not done and sum((obs.rho - 1)[obs.rho > 1]) == 0:
+                    if i > 20:
+                        print('Simulated action not done')
+                        _logs = dict(
+                            current_act=i,
+                            max_rew=np.max(siml_reward),
+                            power_deff=sum((obs.rho - 1)[obs.rho > 1.02])
+                        )
+
+                        for key, val in _logs.items():
+                            print(key, ' -- ', val)
 
     @ classmethod
     def process_reward(cls, rew: float) -> float:
@@ -326,6 +358,8 @@ class Worker(Thread):
 
         obs_b, rew_b, act_b = self.states, self.rewards, self.actions
 
+        obs_b, rew_b, act_b = self._get_tensors(obs_b, rew_b, act_b)
+
         def update_policy():
 
             self.pi_optim.zero_grad(none=True)
@@ -352,3 +386,6 @@ class Worker(Thread):
         update_v()
 
         self.states, self.actions, self.rewards, self.log_p = [], [], [], []
+
+    def _get_tensors(self, *args: typing.Iterable) -> typing.List:
+        return [torch.as_tensor(arg, dtype=torch.float32, device=self.device) for arg in args]
