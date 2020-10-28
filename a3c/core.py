@@ -59,7 +59,7 @@ class CategoricalPolicy(nn.Module):
         self.fc1 = nn.Linear(state_size, hidden_size[0])
 
         net_layers = mlp(hidden_size[0], hidden_layers=hidden_size[1:] + [act_dim],
-                         activation=nn.ReLU, size=2, output_activation=nn.Sigmoid, as_list=True)
+                         activation=nn.ReLU, size=2, output_activation=nn.Softmax, as_list=True)
 
         self.logits = nn.Sequential(self.fc1, *net_layers[:])
 
@@ -72,7 +72,7 @@ class CategoricalPolicy(nn.Module):
                 probabilities of the actions under
                 the new policy
             """
-            pi, _ = self.sample_policy(obs)
+            pi = self.sample_policy(obs)
             log_p = None
 
             if act is not None:
@@ -89,7 +89,7 @@ class CategoricalPolicy(nn.Module):
 
             pi = torch.distributions.Categorical(probs=act_probs)
 
-            return pi, act_probs
+            return pi
 
         @classmethod
         def log_p(cls, pi, a):
@@ -99,7 +99,7 @@ class CategoricalPolicy(nn.Module):
 
             return pi.log_p(a)
 
-        def step(self, obs, log_p: bool = True, act: typing.Iterable = None, act_probs=False):
+        def step(self, obs, log_p: bool = True, act: typing.Iterable = None, ret_policy=False):
             """
                 Predict action
 
@@ -108,7 +108,7 @@ class CategoricalPolicy(nn.Module):
 
             log_p = None
             with torch.no_grad():
-                pi, action_probs = self.sample_policy(obs)
+                pi = self.sample_policy(obs)
 
                 if act is not None:
                     a = act
@@ -119,8 +119,8 @@ class CategoricalPolicy(nn.Module):
 
             items = [a.cpu().numpy(), log_p.cpu().numpy()
                      ]
-            if act_probs:
-                items.append(action_probs)
+            if ret_policy:
+                items.append(pi)
             return items
 
 

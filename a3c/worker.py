@@ -238,10 +238,9 @@ class Worker(Thread):
 
             return action, log_p
 
-        act_idx, log_p, action_probs = self.actor.step(
-            state_input, act_probs=True)
-
-        act_idx = act_idx[0]
+        act_idx, log_p, policy = self.actor.step(
+            state_input, ret_policy=True)
+        action_probs = policy.sample((self.action_dim,))
 
         action_cls = env.action_space({})
         action_cls.from_vect(constants.actions_array[act_idx, :])
@@ -254,15 +253,20 @@ class Worker(Thread):
             rew_ = self.estimate_rew_update(obs_, rew_, done_)
 
             additional_act = 1007
-            np.argsort(action_probs)[-1: -additional_act - 1:, -1]
+            policy_actions = np.argsort(
+                action_probs)[-1: -additional_act - 1:, -1]
 
             action_cls = np.zeros(additional_act)
             siml_reward = np.zeros(additional_act)
 
+            # action with highest simulated reward after `n` steps
+            # shall be selected instead of the policy-chosen action
+
+            # = 20
             for i in range(additional_act):
                 action_cls[i] = env.action_space({})
                 action_cls[i].from_vect(
-                    constants.actions_array[action_probs[i], :])
+                    constants.actions_array[policy_actions[i], :])
 
                 obs, siml_reward, done, _ = state.simulate(action_cls[i])
                 siml_reward[i] = self.process_reward(siml_reward[i])
@@ -280,6 +284,29 @@ class Worker(Thread):
 
                         for key, val in _logs.items():
                             print(key, ' -- ', val)
+
+                        act = policy_actions[i]
+                        return act,\
+                            policy.log_p(torch
+                                         .from_numpy(act)
+                                         .type(torch.float32)
+                                         .to(self.device)
+                                         )
+
+                max_sim_r = np.max(siml_reward)
+                if max_sim_r > rew_:
+                    print(
+                        f'\nAction has danger\nsim rew: {max_sim_r}, rew: {rew_}')
+                    act = [np.argmax(siml_reward)]
+
+                    return act, \
+                        policy.log_p(
+                            torch.from_numpy(act)
+                            .type(
+                                torch.float32)
+                            .to(self.device))
+
+        return act_idx, log_p
 
     @ classmethod
     def process_reward(cls, rew: float) -> float:
