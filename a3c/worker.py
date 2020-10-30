@@ -21,7 +21,7 @@ import constants
 import core
 
 
-class Worker(Thread):
+class Worker(object):
     """
         The Agent class.
 
@@ -81,6 +81,11 @@ class Worker(Thread):
 
         print(f'Starting agent: {self.worker_idx}\n')
 
+        err_act_msg = [
+            'is_illegal', 'is_ambiguous', 'is_dispatching_illegal',
+            'is_illegal_reco'
+        ]
+
         env = grid2op.make(
             self.env_name, reward_class=L2RPNSandBoxScore, difficulty='competition')
 
@@ -90,7 +95,9 @@ class Worker(Thread):
 
             time_step_end = env.chronics_handler.max_timestep() - 2
 
-            print('time step end: ', time_step_end)
+            # print('time step end: ', time_step_end)
+            if not episode % 50:
+              print(f'[{episode}]', ' / ',' constants.EPISODE_STEPS\n')
 
             time_hour = 0
             score = 0
@@ -106,12 +113,18 @@ class Worker(Thread):
                 if min(state.rho < .8):
                     action = 0
 
-                action_vect = constants.actions_array[action:, ]
+                # print('\n\naction: ', action)
+                action_vect = constants.actions_array[action,: ]
 
                 act = env.action_space({})
                 act.from_vect(action_vect)
 
-                n_state, rew, done, _ = env.step(act)
+                n_state, rew, done, info = env.step(act)
+
+                for err_msg in err_act_msg:
+                  if info[err_msg]:
+                    # print(action, err_msg, '\n\n')
+                    ...
 
                 reward = self.process_reward(rew)
 
@@ -143,7 +156,7 @@ class Worker(Thread):
                 eps_scores.append(score)
 
                 p_d = np.sum(state.prod_p) - np.sum(state.load_p)
-                print(f'Power deficiency: {p_d}')
+                # print(f'Power deficiency: {p_d}')
 
                 time_step += 1
                 non_zero_actions += 0 if not action else 1
@@ -238,14 +251,14 @@ class Worker(Thread):
                 .type(torch.float32)
                 .to(self.device))
 
-            return action, log_p
+            return action[0], log_p
 
         act_idx, log_p, policy = self.actor.step(
             state_input, ret_policy=True)
         action_probs = policy.sample((self.action_dim,))
 
         action_cls = env.action_space({})
-        action_cls.from_vect(constants.actions_array[act_idx, :])
+        action_cls.from_vect(constants.actions_array[act_idx, :][:])
 
         # Simulate
         obs_, rew_, done_, _ = state.simulate(action_cls)
@@ -255,11 +268,23 @@ class Worker(Thread):
             rew_ = self.estimate_rew_update(obs_, rew_, done_)
 
             additional_act = 1007
-            policy_actions = np.argsort(
-                action_probs)[-1: -additional_act - 1:, -1]
 
-            action_cls = np.zeros(additional_act)
-            siml_reward = np.zeros(additional_act)
+            try:
+              policy_actions = np.argsort(
+                action_probs)[-1: -additional_act - 1: -1]
+              print(f'policy_actions: {policy_actions}')
+
+            except ValueError as err:
+              # Tensors err on negative indexing
+              # sometimes
+              print(action_probs)
+              policy_actions = np.argsort(
+                action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
+              # raise(ValueError)
+
+
+            action_cls = np.zeros(additional_act, dtype=np.object)
+            siml_reward = np.zeros(additional_act, dtype=np.float32)
 
             # action with highest simulated reward after `n` steps
             # shall be selected instead of the policy-chosen action
@@ -270,7 +295,7 @@ class Worker(Thread):
                 action_cls[i].from_vect(
                     constants.actions_array[policy_actions[i], :])
 
-                obs, siml_reward, done, _ = state.simulate(action_cls[i])
+                obs, siml_reward[i], done, _ = state.simulate(action_cls[i])
                 siml_reward[i] = self.process_reward(siml_reward[i])
                 siml_reward[i] = self.estimate_rew_update(
                     obs, siml_reward[i], done)
