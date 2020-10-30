@@ -97,7 +97,7 @@ class Worker(object):
 
             # print('time step end: ', time_step_end)
             if not episode % 10:
-              print(f'[{episode}]', ' / ', f' constants.EPISODE_STEPS\n')
+                print(f'[{episode}]', ' / ', f' constants.EPISODE_STEPS\n')
 
             time_hour = 0
             score = 0
@@ -115,7 +115,7 @@ class Worker(object):
                     action = 0
 
                 # print('\n\naction: ', action)
-                action_vect = constants.actions_array[action,: ]
+                action_vect = constants.actions_array[action, :]
 
                 act = env.action_space({})
                 act.from_vect(action_vect)
@@ -123,9 +123,9 @@ class Worker(object):
                 n_state, rew, done, info = env.step(act)
 
                 for err_msg in err_act_msg:
-                  if info[err_msg]:
-                    # print(action, err_msg, '\n\n')
-                    ...
+                    if info[err_msg]:
+                        # print(action, err_msg, '\n\n')
+                        ...
 
                 reward = self.process_reward(rew)
 
@@ -157,11 +157,11 @@ class Worker(object):
                 eps_scores.append(score)
 
                 try:
-                  p_d = np.sum(state.prod_p) - np.sum(state.load_p)
-                  # print(f'Power deficiency: {p_d}')
+                    p_d = np.sum(state.prod_p) - np.sum(state.load_p)
+                    # print(f'Power deficiency: {p_d}')
                 except AttributeError:
-                  # For reset state, np array is used
-                  ...
+                    # For reset state, np array is used
+                    ...
 
                 time_step += 1
                 non_zero_actions += 0 if not action else 1
@@ -186,7 +186,6 @@ class Worker(object):
                     constants.episode = episode
 
                     self._log(logs, eps_scores, episode)
-
 
                     print('time window: {env.chronics_handler.max_timestep()}')
                     self.update(episode, not done)
@@ -278,17 +277,16 @@ class Worker(object):
             additional_act = 1007
 
             try:
-              policy_actions = np.argsort(
-                action_probs)[-1: -additional_act - 1: -1]
-              print(f'policy_actions: {policy_actions}')
+                policy_actions = np.argsort(
+                    action_probs)[-1: -additional_act - 1: -1]
+                print(f'policy_actions: {policy_actions}')
 
             except ValueError as err:
-              # Tensors err on negative indexing
-              # sometimes
-              policy_actions = np.argsort(
-                action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
-              # raise(ValueError)
-
+                # Tensors err on negative indexing
+                # sometimes
+                policy_actions = np.argsort(
+                    action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
+                # raise(ValueError)
 
             action_cls = np.zeros(additional_act, dtype=np.object)
             siml_reward = np.zeros(additional_act, dtype=np.float32)
@@ -322,12 +320,12 @@ class Worker(object):
                         act = policy_actions[i]
 
                         state_input = torch.from_numpy(
-                        self._convert_obs(obs)).type(torch.float32).to(self.device)
+                            self._convert_obs(obs)).type(torch.float32).to(self.device)
                         _, log_p = self.actor.step(state_input, torch
-                                         .as_tensor(act)
-                                         .type(torch.float32)
-                                         .to(self.device)
-                                         )
+                                                   .as_tensor(act)
+                                                   .type(torch.float32)
+                                                   .to(self.device)
+                                                   )
                         print(f'2. logp: {log_p}')
                         return act, log_p
 
@@ -339,16 +337,15 @@ class Worker(object):
                     act = policy_actions[act]
 
                     state_input = torch.from_numpy(
-                    self._convert_obs(obs)).type(torch.float32).to(self.device)
+                        self._convert_obs(obs)).type(torch.float32).to(self.device)
                     _, log_p = self.actor.step(state_input, torch
-                                         .as_tensor(act)
-                                         .type(torch.float32)
-                                         .to(self.device)
-                                         )
+                                               .as_tensor(act)
+                                               .type(torch.float32)
+                                               .to(self.device)
+                                               )
 
                     print(f'3. logp: {log_p}')
                     return act, log_p
-
 
         return act_idx, log_p
 
@@ -421,7 +418,7 @@ class Worker(object):
         values = self.critic.predict_v(torch.as_tensor(
             self.states, dtype=torch.float32,
             device=self.device)
-            )
+        )
         values[-1] = final_v
 
         # Estimate advantages using GAE
@@ -430,14 +427,15 @@ class Worker(object):
 
         obs_b, rew_b, act_b, log_p = self.states, self.rewards, self.actions, self.log_p
 
-        obs_b, rew_b, act_b, log_p_ = self._get_tensors(obs_b, rew_b, act_b, log_p)
+        obs_b, rew_b, act_b, log_p_ = self._get_tensors(
+            obs_b, rew_b, act_b, log_p)
 
         def update_policy():
 
             # self.pi_optim.zero_grad()
             for group in self.pi_optim.param_groups:
-              for param in group['params']:
-                param.grad = None
+                for param in group['params']:
+                    param.grad = None
 
             pi_loss, k_l = self._compute_pi_loss(
                 obs_b, act_b, advantages, log_p_)
@@ -451,8 +449,8 @@ class Worker(object):
         def update_v():
             # self.v_optim.zero_grad()
             for group in self.v_optim.param_groups:
-              for param in group['params']:
-                param.grad = None
+                for param in group['params']:
+                    param.grad = None
             v_loss = self._compute_v_loss(obs_b, rew_b)
 
             v_loss.backward()
@@ -466,13 +464,15 @@ class Worker(object):
         self.states, self.actions, self.rewards, self.log_p = [], [], [], []
 
     def _get_tensors(self, *args: typing.Iterable) -> typing.List:
-      tensors = []
-      for arg in args:
-        try:
-          t = torch.as_tensor(arg, dtype=torch.float32, device=self.device)
-        except ValueError: # Negative [::-1] strided arrays can't be tensored
-          t = torch.as_tensor(arg.copy(), dtype=torch.float32, device=self.device)
-        tensors.append(t)
+        tensors = []
+        for arg in args:
+            try:
+                t = torch.as_tensor(
+                    arg, dtype=torch.float32, device=self.device)
+            # Negative [::-1] strided arrays can't be tensored
+            except ValueError:
+                t = torch.as_tensor(
+                    arg.copy(), dtype=torch.float32, device=self.device)
+            tensors.append(t)
 
-      return tensors
-
+        return tensors
