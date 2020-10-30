@@ -21,7 +21,7 @@ import constants
 import core
 
 
-class Worker(object):
+class Worker(Thread):
     """
         The Agent class.
 
@@ -278,7 +278,7 @@ class Worker(object):
 
             try:
                 policy_actions = np.argsort(
-                    action_probs)[-1: -additional_act - 1: -1]
+                    action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
                 print(f'policy_actions: {policy_actions}')
 
             except ValueError as err:
@@ -412,10 +412,13 @@ class Worker(object):
         else:
             final_v = 0
 
-        self.rewards = disc_rewards = core.disc_cumsum(
-            self.rewards, self.gamma)
+        self.rewards.append(final_v)
 
-        values = self.critic.predict_v(torch.as_tensor(
+        self.rewards[:-1] = disc_rewards = core.disc_cumsum(
+            self.rewards, self.gamma)[:-1]
+
+        values = np.zeros(np.shape(self.rewards), dtype=np.float32)
+        values[:-1] = self.critic.predict_v(torch.as_tensor(
             self.states, dtype=torch.float32,
             device=self.device)
         )
@@ -424,6 +427,8 @@ class Worker(object):
         # Estimate advantages using GAE
         deltas = self.rewards[:-1] + self.gamma * values[1:] - values[:-1]
         advantages = core.disc_cumsum(deltas, self.gamma * self.lamda)
+        advantages = torch.from_numpy(advantages.copy()).type(
+            torch.float32).to(self.device)
 
         obs_b, rew_b, act_b, log_p = self.states, self.rewards, self.actions, self.log_p
 

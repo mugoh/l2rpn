@@ -48,12 +48,14 @@ class A3C(nn.Module):
         """
         # Actor and critic share the first layer
 
+        h_states = [10, 10, 10]
+
         actor = core.CategoricalPolicy(state_size, action_size,
-                                       hidden_size=[10, 10, 10])
+                                       hidden_size=h_states[:])
         critic = core.Critic(shared_layer=actor.fc1,
                              state_size=state_size,
                              act_dim=action_size,
-                             hidden_size=[10, 10, 10])
+                             hidden_size=h_states[:])
 
         return actor.to(self.device), critic.to(self.device)
 
@@ -129,12 +131,13 @@ class A3C(nn.Module):
                     device=self.device,
                     optimizers=[self.actor_optimizer, self.critic_optimizer])
         workers = [Worker(i, self.action_size, self.state_size, **args)
-                   for i in range(self.n_workers)]
+                   for i in range(self.n_workers)
+                   ]
 
         print(f'Worker count: {len(workers)}')
 
         for worker in workers:
-            worker.start()
+            worker.run()
 
         while len(constants.scores) < self.n_steps:
             time.sleep(400)  # save checkpoint every 400 ms
