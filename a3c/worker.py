@@ -430,7 +430,10 @@ class Worker(object):
 
         def update_policy():
 
-            self.pi_optim.zero_grad(none=True)
+            # self.pi_optim.zero_grad()
+            for group in self.pi_optim.param_groups:
+                for param in group['params']:
+                    param.grad = None
 
             pi_loss, k_l = self._compute_pi_loss(
                 obs_b, act_b, advantages, self.log_p)
@@ -442,7 +445,10 @@ class Worker(object):
             self.logger.add_scalar('KL', k_l, epoch)
 
         def update_v():
-            self.v_optim.zero_grad(none=True)
+            # self.v_optim.zero_grad()
+            for group in self.v_optim.param_groups:
+                for param in group['params']:
+                    param.grad = None
             v_loss = self._compute_v_loss(obs_b, rew_b)
 
             v_loss.backward()
