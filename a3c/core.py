@@ -41,7 +41,8 @@ def mlp(x,
         x = size
 
     net_layers.append(nn.Linear(x, hidden_layers[-1]))
-    net_layers += [output_activation()]
+    net_layers += [output_activation() if output_activation.__name__ !=
+                   'Softmax' else output_activation(-1)]
 
     if as_list:
         return net_layers
@@ -54,7 +55,7 @@ class CategoricalPolicy(nn.Module):
     """
 
     def __init__(self, state_size: int, act_dim: int, hidden_size: list = [1000, 1000, 1000], **args):
-        super(Actor, self).__init__()
+        super(CategoricalPolicy, self).__init__()
 
         self.fc1 = nn.Linear(state_size, hidden_size[0])
 
@@ -63,65 +64,65 @@ class CategoricalPolicy(nn.Module):
 
         self.logits = nn.Sequential(self.fc1, *net_layers[:])
 
-        def forward(self, obs, act=None):
-            """
-                Gives a new policy under the
-                observatation.
+    def forward(self, obs, act=None):
+        """
+            Gives a new policy under the
+            observatation.
 
-                If `act` is present, return the log
-                probabilities of the actions under
-                the new policy
-            """
+            If `act` is present, return the log
+            probabilities of the actions under
+            the new policy
+        """
+        pi = self.sample_policy(obs)
+        log_p = None
+
+        if act is not None:
+            log_p = self.log_p(pi, act.unsqueeze(-1))
+
+        return pi, log_p
+
+    def sample_policy(self, obs):
+        """
+            Returns a new policy on the given observations
+        """
+
+        act_probs = self.logits(obs)
+
+        pi = torch.distributions.Categorical(probs=act_probs)
+
+        return pi
+
+    @classmethod
+    def log_p(cls, pi, a):
+        """
+            Log probabilies of act w.r.t pi
+        """
+
+        return pi.log_prob(a)
+
+    def step(self, obs, log_p: bool = True, act: typing.Iterable = None, ret_policy=False):
+        """
+            Predict action
+
+            act: Action selected randomly during epsilon greedy
+        """
+
+        log_p = None
+        with torch.no_grad():
             pi = self.sample_policy(obs)
-            log_p = None
 
             if act is not None:
-                log_p = self.log_p(pi, act.unsqueeze(-1))
+                a = act
+            else:
+                a = pi.sample()
 
-            return pi, log_p
+            log_p = self.log_p(pi, a)
 
-        def sample_policy(self, obs):
-            """
-                Returns a new policy on the given observations
-            """
-
-            act_probs = self.logits(obs)
-
-            pi = torch.distributions.Categorical(probs=act_probs)
-
-            return pi
-
-        @classmethod
-        def log_p(cls, pi, a):
-            """
-                Log probabilies of act w.r.t pi
-            """
-
-            return pi.log_p(a)
-
-        def step(self, obs, log_p: bool = True, act: typing.Iterable = None, ret_policy=False):
-            """
-                Predict action
-
-                act: Action selected randomly during epsilon greedy
-            """
-
-            log_p = None
-            with torch.no_grad():
-                pi = self.sample_policy(obs)
-
-                if act is not None:
-                    a = act
-                else:
-                    a = pi.sample()
-
-                log_p = self.log_p(pi, a)
-
-            items = [a.cpu().numpy(), log_p.cpu().numpy()
-                     ]
-            if ret_policy:
-                items.append(pi)
-            return items
+        items = [a.cpu().numpy(), log_p.cpu().numpy()
+                 ]
+        if ret_policy:
+            items.append(pi)
+        return items
 
 
 class Critic(nn.Module):
@@ -139,13 +140,13 @@ class Critic(nn.Module):
 
         self.value_f = nn.Sequential(self.fc1, *net_layers[:])
 
-        def forward(self, x):
-            return self.value_f(x).squeeze(-1)
+    def forward(self, x):
+        return self.value_f(x).squeeze(-1)
 
-        def predict_v(self, obs):
-            """
-                Predicts the value of a state
-            """
+    def predict_v(self, obs):
+        """
+            Predicts the value of a state
+        """
 
-            with torch.no_grad():
-                return self(obs).cpu().numpy()
+        with torch.no_grad():
+            return self(obs).cpu().numpy()

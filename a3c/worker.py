@@ -11,7 +11,7 @@ import grid2op
 from grid2op.Reward import L2RPNSandBoxScore
 
 import torch
-import torch.Tensor as Tensor
+from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
@@ -34,6 +34,7 @@ class Worker(Thread):
     """
 
     def __init__(self, index: int, action_dim, state_size, env_name: str = 'l2rpn_wcci_2020', batch_size: int = 256, ** args):
+        super(Worker, self).__init__()
         self.states = []
         self.rewards = []
         self.actions = []
@@ -225,7 +226,7 @@ class Worker(Thread):
             Predicts an action for a given state
         """
         state_input = torch.from_numpy(
-            self._convert_obs(state)).to(self.device)
+            self._convert_obs(state)).type(torch.float32).to(self.device)
 
         if np.random.uniform() < self.epsilon:
             self.epsilon = np.max([.01, self.epsilon * .995])

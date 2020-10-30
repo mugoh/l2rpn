@@ -19,6 +19,7 @@ import constants
 
 class A3C(nn.Module):
     def __init__(self, state_size, action_size):
+        super(A3C, self).__init__()
         self.actor_lr = .001
         self.critic_lr = .005
         self.gamma = .98  # discount factor
@@ -38,8 +39,8 @@ class A3C(nn.Module):
 
         self.actor, self.critic = self.build_nets(state_size, action_size)
 
-        constants.init()
         print('const eps steps: ', constants.EPISODE_STEPS)
+        self.configure_optimizers()
 
     def build_nets(self, state_size: int, action_size: int) -> typing.Tuple[nn.Module, nn.Module]:
         """
@@ -47,9 +48,12 @@ class A3C(nn.Module):
         """
         # Actor and critic share the first layer
 
-        actor = core.CategoricalPolicy(state_size, action_size)
+        actor = core.CategoricalPolicy(state_size, action_size,
+                                       hidden_size=[10, 10, 10])
         critic = core.Critic(shared_layer=actor.fc1,
-                             state_size=state_size, act_dim=action_size)
+                             state_size=state_size,
+                             act_dim=action_size,
+                             hidden_size=[10, 10, 10])
 
         return actor.to(self.device), critic.to(self.device)
 
@@ -69,7 +73,7 @@ class A3C(nn.Module):
 
         if not path:
             dir_ = os.path.dirname(os.path.realpath('__file__'))
-            path = os.path.join(dir_, '.model.pt')
+            path = os.path.join(dir_, 'model.pt')
 
         try:
             ckpt = torch.load(path)
@@ -92,7 +96,7 @@ class A3C(nn.Module):
 
         return epoch
 
-    def save(self, epoch: int, path: str = '.model.pt'):
+    def save(self, epoch: int, path: str = 'model.pt'):
         """
             Saves the current model checkpoint
 
@@ -122,9 +126,12 @@ class A3C(nn.Module):
                     critic=self.critic,
                     gamma=self.gamma,
                     lamda=self.lamda or self.gamma / 1.005,
-                    device=self.device)
+                    device=self.device,
+                    optimizers=[self.actor_optimizer, self.critic_optimizer])
         workers = [Worker(i, self.action_size, self.state_size, **args)
                    for i in range(self.n_workers)]
+
+        print(f'Worker count: {len(workers)}')
 
         for worker in workers:
             worker.start()
@@ -135,4 +142,4 @@ class A3C(nn.Module):
             print(f'\nCurrent scores: {constants.scores}')
 
             self.save(constants.episode)
-            print('\nCheckpoint saved at episode: {constants.episode}\n')
+            print(f'\nCheckpoint saved at episode: {constants.episode}\n')
