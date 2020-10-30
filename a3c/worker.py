@@ -96,8 +96,8 @@ class Worker(object):
             time_step_end = env.chronics_handler.max_timestep() - 2
 
             # print('time step end: ', time_step_end)
-            if not episode % 50:
-              print(f'[{episode}]', ' / ',' constants.EPISODE_STEPS\n')
+            if not episode % 10:
+                print(f'[{episode}]', ' / ', ' constants.EPISODE_STEPS\n')
 
             time_hour = 0
             score = 0
@@ -114,7 +114,7 @@ class Worker(object):
                     action = 0
 
                 # print('\n\naction: ', action)
-                action_vect = constants.actions_array[action,: ]
+                action_vect = constants.actions_array[action, :]
 
                 act = env.action_space({})
                 act.from_vect(action_vect)
@@ -122,9 +122,9 @@ class Worker(object):
                 n_state, rew, done, info = env.step(act)
 
                 for err_msg in err_act_msg:
-                  if info[err_msg]:
-                    # print(action, err_msg, '\n\n')
-                    ...
+                    if info[err_msg]:
+                        # print(action, err_msg, '\n\n')
+                        ...
 
                 reward = self.process_reward(rew)
 
@@ -155,8 +155,12 @@ class Worker(object):
 
                 eps_scores.append(score)
 
-                p_d = np.sum(state.prod_p) - np.sum(state.load_p)
-                # print(f'Power deficiency: {p_d}')
+                try:
+                    p_d = np.sum(state.prod_p) - np.sum(state.load_p)
+                    # print(f'Power deficiency: {p_d}')
+                except AttributeError:
+                    # For reset state, np array is used
+                    ...
 
                 time_step += 1
                 non_zero_actions += 0 if not action else 1
@@ -175,11 +179,12 @@ class Worker(object):
                 if terminal:
                     print(
                         f'\nStopped Thread: {self.worker_idx}: done: {done}\n')
-                    self._log(logs, eps_scores, episode)
 
                     constants.scores.append(score)
                     episode += 1
                     constants.episode = episode
+
+                    self._log(logs, eps_scores, episode)
 
                     print('time window: {env.chronics_handler.max_timestep()}')
                     self.update(episode, not done)
@@ -255,6 +260,7 @@ class Worker(object):
 
         act_idx, log_p, policy = self.actor.step(
             state_input, ret_policy=True)
+        print(f'1. logp: {log_p}')
         action_probs = policy.sample((self.action_dim,))
 
         action_cls = env.action_space({})
@@ -270,18 +276,16 @@ class Worker(object):
             additional_act = 1007
 
             try:
-              policy_actions = np.argsort(
-                action_probs)[-1: -additional_act - 1: -1]
-              print(f'policy_actions: {policy_actions}')
+                policy_actions = np.argsort(
+                    action_probs)[-1: -additional_act - 1: -1]
+                print(f'policy_actions: {policy_actions}')
 
             except ValueError as err:
-              # Tensors err on negative indexing
-              # sometimes
-              print(action_probs)
-              policy_actions = np.argsort(
-                action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
-              # raise(ValueError)
-
+                # Tensors err on negative indexing
+                # sometimes
+                policy_actions = np.argsort(
+                    action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
+                # raise(ValueError)
 
             action_cls = np.zeros(additional_act, dtype=np.object)
             siml_reward = np.zeros(additional_act, dtype=np.float32)
@@ -313,25 +317,34 @@ class Worker(object):
                             print(key, ' -- ', val)
 
                         act = policy_actions[i]
-                        return act,\
-                            policy.log_p(torch
-                                         .from_numpy(act)
-                                         .type(torch.float32)
-                                         .to(self.device)
-                                         )
+
+                        state_input = torch.from_numpy(
+                            self._convert_obs(obs)).type(torch.float32).to(self.device)
+                        _, log_p = self.actor.step(state_input, torch
+                                                   .as_tensor(act)
+                                                   .type(torch.float32)
+                                                   .to(self.device)
+                                                   )
+                        print(f'2. logp: {log_p}')
+                        return act, log_p
 
                 max_sim_r = np.max(siml_reward)
                 if max_sim_r > rew_:
                     print(
                         f'\nAction has danger\nsim rew: {max_sim_r}, rew: {rew_}')
-                    act = [np.argmax(siml_reward)]
+                    act = np.argmax(siml_reward)
+                    act = policy_actions[act]
 
-                    return act, \
-                        policy.log_p(
-                            torch.from_numpy(act)
-                            .type(
-                                torch.float32)
-                            .to(self.device))
+                    state_input = torch.from_numpy(
+                        self._convert_obs(obs)).type(torch.float32).to(self.device)
+                    _, log_p = self.actor.step(state_input, torch
+                                               .as_tensor(act)
+                                               .type(torch.float32)
+                                               .to(self.device)
+                                               )
+
+                    print(f'3. logp: {log_p}')
+                    return act, log_p
 
         return act_idx, log_p
 
@@ -389,22 +402,21 @@ class Worker(object):
         if eps_terminated:
             # estimate value of end state
             # when episode is terminated at max_eps
-            final_v = self.critic.predict_v(torch.from_numpy(
-                self.states[-1])
+            final_v = self.critic.predict_v(torch.as_tensor(
+                self.states[-1], dtype=torch.float32,
+                device=self.device)
                 .dtype(torch.float32)
                 .view(1, -1)
-                .to(self.device)
             )
         else:
             final_v = 0
 
         self.rewards = disc_rewards = core.disc_cumsum(
-            self.rewards, self.gamma)[:-1]
+            self.rewards, self.gamma)
 
-        values = self.critic.predict_v(torch.from_numpy(
-            self.states)
-            .type(torch.float32)
-            .to(self.device)
+        values = self.critic.predict_v(torch.as_tensor(
+            self.states, dtype=torch.float32,
+            device=self.device)
         )
         values[-1] = final_v
 
@@ -444,4 +456,15 @@ class Worker(object):
         self.states, self.actions, self.rewards, self.log_p = [], [], [], []
 
     def _get_tensors(self, *args: typing.Iterable) -> typing.List:
-        return [torch.as_tensor(arg, dtype=torch.float32, device=self.device) for arg in args]
+        tensors = []
+        for arg in args:
+            try:
+                t = torch.as_tensor(
+                    arg, dtype=torch.float32, device=self.device)
+            # Negative [::-1] strided arrays can't be tensored
+            except ValueError:
+                t = torch.as_tensor(
+                    arg.copy(), dtype=torch.float32, device=self.device)
+            tensors.append(t)
+
+        return tensors
