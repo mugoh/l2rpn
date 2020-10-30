@@ -20,6 +20,8 @@ For the robustness track, which these solutions aimed at, the agent should be ro
 1. Install the environment
 `pip install grid2op`
 
+ - Switch the currect directory to one of the solutions `cd {solution_dir} # e.g ppo`
+
 2. Install requirements for each solution (In each solution directory)
 ```
     pip install -r requirements.txt
@@ -32,6 +34,7 @@ python3 main.py
 
 4. Evaluate the agent on the submission script
 ```
-python3 submission.py
+python3 eval_submission/run_check {solution_dir} 
 ```
+ - There is an example for this in `eval_submission/example_submission/`
 
