@@ -78,6 +78,7 @@ class Worker(Thread):
 
         episode = 0
         eps_scores = []
+        max_step = 64
 
         print(f'Starting agent: {self.worker_idx}\n')
 
@@ -166,7 +167,7 @@ class Worker(Thread):
                 time_step += 1
                 non_zero_actions += 0 if not action else 1
 
-                terminal = done or time_step >= time_step_end
+                terminal = done or time_step >= time_step_end or time_step >= max_step
 
                 logs = {
                     'episode': episode,
@@ -406,7 +407,7 @@ class Worker(Thread):
             final_v = self.critic.predict_v(torch.as_tensor(
                 self.states[-1], dtype=torch.float32,
                 device=self.device)
-                .dtype(torch.float32)
+                .type(torch.float32)
                 .view(1, -1)
             )
         else:
