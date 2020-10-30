@@ -1,0 +1,87 @@
+
+path = 'mod_ppo/name-2020-09-20-19-40-49.pt'
+
+ac_args = {
+    # obs: ~170-190, act_dim: ~200
+    'pi': {
+        'hidden_sizes': [330, 128, 128, 128],
+        'size': 4,
+        'activation': nn.ReLU
+    },
+    'v': {
+        'hidden_sizes': [128, 128, 128, 190],
+        'size': 4,
+        'activation': nn.Tanh
+    }
+}
+train_args = {
+    'pi_train_n_iters': 80,
+    'v_train_n_iters': 80,
+    'max_kl': .01,
+    'max_eps_len': 500,
+    'clip_ratio': .2
+}
+feature_args = {
+    # observation attr used in training
+    'obs_attributes': [
+        "day_of_week",
+        "hour_of_day",
+        "minute_of_hour",
+        "prod_p",
+        # "prod_v",
+        "load_p",
+        "load_q",
+        # "actual_dispatch",
+        "target_dispatch",
+        "topo_vect",
+        "time_before_cooldown_line",
+        "time_before_cooldown_sub",
+        "timestep_overflow",
+        "line_status"
+        # "rho"
+        # 'month'
+    ],
+
+    # Actions agent can do
+    'kwargs_converters': {
+        'all_actions': None,
+        'set_line_status': True,
+        'set_topo_vect': False,
+        'redispatch': True,
+        'change_bus_vect': False
+    },
+
+    # Whether to perform action filtering
+    # See {AgentClassName}._filter_act for info
+    'filter_acts':
+    True
+}
+
+agent_args = {
+    'n_epochs': 1000,
+    'env_name': '',  # 'b_10000_plr_.1e-4',
+    'steps_per_epoch': 500,
+    'save_frequency': 5,
+    'training': True,
+
+    # If true use torch.torch.optim.lr_scheduler.ReduceLROnPlateau
+    'schedule_pi_lr': False,
+    'schedule_v_lr': False
+}
+
+# Log step count 10 times
+agent_args['log_step_freq'] = agent_args['steps_per_epoch'] / 5
+
+args = {
+    'ac_args': ac_args,
+    'pi_lr': 1e-4,
+    'v_lr': 5e-4,
+    'gamma': .99,
+    'lamda': .995,
+    'save_path': 'PPO_MODEL.pt',  # CUDA runs out of memory
+    'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+    **agent_args,
+    **train_args,
+    **feature_args
+}
+

@@ -1,0 +1,45 @@
+{
+    "all_seeds": {
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_april_018": 1099730832,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_august_007": 251406722,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_december_019": 2131835863,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_february_011": 1281766377,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_january_035": 1311612088,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_july_010": 713966580,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_june_024": 2123246661,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_march_040": 656922610,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_may_025": 1476592816,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_november_026": 414180002,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_october_006": 41573426,
+        "/home/benjamin/Downloads/neurips_create_dataset/old/l2rpn_neurips_2020_track1_large/chronics/Scenario_september_001": 1417450213
+    },
+    "datetime_beg": {
+        "Scenario_april_018": "2012-04-15 00:00",
+        "Scenario_august_007": "2012-08-19 00:00",
+        "Scenario_december_019": "2012-12-15 00:00",
+        "Scenario_february_011": "2012-02-09 00:00",
+        "Scenario_january_035": "2012-01-12 00:00",
+        "Scenario_july_010": "2012-07-18 00:00",
+        "Scenario_june_024": "2012-06-13 00:00",
+        "Scenario_march_040": "2012-03-17 00:00",
+        "Scenario_may_025": "2012-05-10 00:00",
+        "Scenario_november_026": "2012-11-11 00:00",
+        "Scenario_october_006": "2012-10-09 00:00",
+        "Scenario_september_001": "2012-09-14 00:00"
+    },
+    "datetime_end": {
+        "Scenario_april_018": "2012-04-22 00:00",
+        "Scenario_august_007": "2012-08-26 00:00",
+        "Scenario_december_019": "2012-12-22 00:00",
+        "Scenario_february_011": "2012-02-16 00:00",
+        "Scenario_january_035": "2012-01-19 00:00",
+        "Scenario_july_010": "2012-07-25 00:00",
+        "Scenario_june_024": "2012-06-20 00:00",
+        "Scenario_march_040": "2012-03-24 00:00",
+        "Scenario_may_025": "2012-05-17 00:00",
+        "Scenario_november_026": "2012-11-18 00:00",
+        "Scenario_october_006": "2012-10-16 00:00",
+        "Scenario_september_001": "2012-09-21 00:00"
+    },
+    "path_out": "/home/benjamin/Downloads/neurips_create_dataset/test_extract/test_track1_warmup/chronics"
+}

@@ -1,0 +1,11 @@
+{
+    "agent_seed": 1568604927,
+    "backend_type": "LightSimBackend_input_data_local",
+    "chronics_max_timestep": "2016",
+    "chronics_path": "/home/precious/Downloads/NeurIPS_grid_challenge/to_submit/folder_sub/input_data_local/chronics/jun24",
+    "cumulative_reward": 5665.5419921875,
+    "env_seed": 920177063,
+    "env_type": "Environment_input_data_local",
+    "grid_path": "/home/precious/Downloads/NeurIPS_grid_challenge/to_submit/folder_sub/input_data_local/grid.json",
+    "nb_timestep_played": 7
+}
