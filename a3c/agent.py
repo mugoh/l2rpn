@@ -137,7 +137,7 @@ class A3C(nn.Module):
         print(f'Worker count: {len(workers)}')
 
         for worker in workers:
-            worker.run()
+            worker.start()
 
         while len(constants.scores) < self.n_steps:
             time.sleep(400)  # save checkpoint every 400 ms
