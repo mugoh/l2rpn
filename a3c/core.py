@@ -100,7 +100,7 @@ class CategoricalPolicy(nn.Module):
 
         return pi.log_prob(a)
 
-    def step(self, obs, log_p: bool = True, act: typing.Iterable = None, ret_policy=False):
+    def step(self, obs, act: typing.Iterable = None, log_p: bool = True, ret_policy=False):
         """
             Predict action
 

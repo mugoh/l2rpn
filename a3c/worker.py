@@ -78,7 +78,7 @@ class Worker(Thread):
 
         episode = 0
         eps_scores = []
-        max_step = 64
+        max_step = 16
 
         print(f'Starting agent: {self.worker_idx}\n')
 
@@ -188,7 +188,8 @@ class Worker(Thread):
 
                     self._log(logs, eps_scores, episode)
 
-                    print('time window: {env.chronics_handler.max_timestep()}')
+                    print(
+                        f'time window: {env.chronics_handler.max_timestep()}')
                     self.update(episode, not done)
                     eps_scores = []
                     break
@@ -280,7 +281,7 @@ class Worker(Thread):
             try:
                 policy_actions = np.argsort(
                     action_probs.cpu().numpy())[-1: -additional_act - 1: -1]
-                print(f'policy_actions: {policy_actions}')
+                # print(f'policy_actions: {policy_actions}')
 
             except ValueError as err:
                 # Tensors err on negative indexing
@@ -430,6 +431,8 @@ class Worker(Thread):
         advantages = core.disc_cumsum(deltas, self.gamma * self.lamda)
         advantages = torch.from_numpy(advantages.copy()).type(
             torch.float32).to(self.device)
+
+        self.rewards = self.rewards[:-1]
 
         obs_b, rew_b, act_b, log_p = self.states, self.rewards, self.actions, self.log_p
 
